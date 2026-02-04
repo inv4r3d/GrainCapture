@@ -3,283 +3,274 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FLUX DEBUG</title>
+    <title>FLUX: BOOSTED</title>
     <style>
         body {
             background-color: #000;
-            color: #fff;
+            color: #0f0;
             font-family: monospace;
             display: flex;
             flex-direction: column;
             height: 100vh;
             margin: 0;
             overflow: hidden;
-            text-transform: uppercase;
         }
 
-        /* --- LOG CONSOLE --- */
+        /* Верхняя панель логов */
         #log {
-            flex-grow: 1;
+            height: 30%;
             overflow-y: auto;
             padding: 10px;
-            font-size: 10px;
+            font-size: 11px;
             border-bottom: 1px solid #333;
-            color: #0f0; /* Green terminal style */
             white-space: pre-wrap;
+            background: #050505;
         }
 
-        /* --- VISUALIZER --- */
-        #viz-container {
-            height: 150px;
-            width: 100%;
-            border-bottom: 1px solid #333;
+        /* Визуализация */
+        #viz-area {
+            flex-grow: 1;
             position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom: 1px solid #333;
         }
-        canvas { width: 100%; height: 100%; display: block; }
-        
-        #vol-meter {
+
+        /* Мигающий индикатор зерна */
+        #grain-indicator {
+            width: 50px;
+            height: 50px;
+            background: #fff;
+            opacity: 0;
+            border-radius: 50%;
+            transition: opacity 0.05s;
+        }
+
+        .status-overlay {
             position: absolute;
             bottom: 5px;
             left: 5px;
-            font-size: 12px;
-            background: #000;
-            padding: 2px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 1px 2px #000;
         }
 
-        /* --- CONTROLS --- */
+        /* Управление */
         .controls {
             padding: 20px;
+            background: #111;
             display: flex;
             flex-direction: column;
             gap: 15px;
-            background: #111;
+        }
+
+        .slider-row {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .slider-row label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        input[type=range] {
+            width: 100%;
+            height: 30px; /* Большой палец */
         }
 
         button {
-            background: #fff;
+            background: #0f0;
             color: #000;
             border: none;
             padding: 20px;
-            font-family: inherit;
+            font-size: 18px;
             font-weight: bold;
-            font-size: 16px;
-            cursor: pointer;
+            text-transform: uppercase;
         }
-        button:active { background: #888; }
-
-        .slider-row { display: flex; justify-content: space-between; align-items: center; }
-        input[type=range] { flex-grow: 1; margin-left: 10px; }
-
     </style>
 </head>
 <body>
 
-    <div id="log">SYSTEM READY...<br>WAITING FOR USER INTERACTION...</div>
+    <div id="log">SYSTEM READY.<br>TAP START BELOW.</div>
 
-    <div id="viz-container">
-        <canvas id="c"></canvas>
-        <div id="vol-meter">MIC LEVEL: 0.00</div>
+    <div id="viz-area">
+        <div id="grain-indicator"></div>
+        <div class="status-overlay" id="status-text">MIC: OFF</div>
     </div>
 
     <div class="controls">
         <div class="slider-row">
-            <span>GRAIN</span>
-            <input type="range" id="grain" min="0.05" max="0.5" step="0.01" value="0.2">
+            <label><span>INPUT BOOST (GROMKOST)</span><span id="val-boost">x5</span></label>
+            <input type="range" id="boost" min="1" max="20" step="1" value="5">
         </div>
+        
         <div class="slider-row">
-            <span>DENS</span>
-            <input type="range" id="dens" min="20" max="300" step="10" value="80" style="direction: rtl">
+            <label>GRAIN SIZE</label>
+            <input type="range" id="grain" min="0.1" max="0.5" step="0.05" value="0.2">
         </div>
-        <button id="btn">START / INITIALIZE</button>
+
+        <button id="btn">START SYSTEM</button>
     </div>
 
     <script>
-        // --- LOGGER UTILITY ---
+        // --- LOGGER ---
         const logEl = document.getElementById('log');
         function log(msg) {
-            const time = new Date().toLocaleTimeString();
-            logEl.innerHTML += `[${time}] ${msg}<br>`;
-            logEl.scrollTop = logEl.scrollHeight;
-            console.log(msg);
+            logEl.innerHTML = `> ${msg}\n` + logEl.innerHTML;
         }
-        window.onerror = (msg) => log("JS ERROR: " + msg);
+        window.onerror = (e) => {
+            // Игнорируем SCRIPT ERROR, он нам не мешает
+            if(e.toString().includes('Script error')) return;
+            log("ERR: " + e);
+        };
 
-        // --- VARS ---
-        let ctx, stream, source, analyser, recorder;
+        // --- GLOBALS ---
+        let ctx, stream, source, recorder;
         let isRunning = false;
         
-        // Buffers
-        const BUFFER_SIZE = 5; // seconds
+        const BUFFER_SECS = 4;
         let recBuffer;
-        let writeIdx = 0;
+        let writePtr = 0;
         let bufLen = 0;
         let grainTimer;
 
-        // UI
-        const cvs = document.getElementById('c');
-        const cx = cvs.getContext('2d');
-        const volText = document.getElementById('vol-meter');
+        // UI Elements
+        const boostSlider = document.getElementById('boost');
+        const boostVal = document.getElementById('val-boost');
+        const statusText = document.getElementById('status-text');
+        const grainInd = document.getElementById('grain-indicator');
 
-        function resize() {
-            cvs.width = cvs.clientWidth;
-            cvs.height = cvs.clientHeight;
-        }
-        window.onresize = resize;
-        resize();
+        boostSlider.oninput = (e) => boostVal.innerText = "x" + e.target.value;
 
-        // --- MAIN LOGIC ---
-        document.getElementById('btn').onclick = async () => {
-            if (isRunning) {
-                location.reload(); // Hard reset is safer
-                return;
-            }
-            await init();
+        // --- MAIN ---
+        document.getElementById('btn').onclick = async function() {
+            if(isRunning) { location.reload(); return; }
+            await start();
         };
 
-        async function init() {
+        async function start() {
             try {
-                log("1. Creating AudioContext...");
+                log("1. Init AudioContext...");
                 const AC = window.AudioContext || window.webkitAudioContext;
-                ctx = new AC({ latencyHint: 'interactive' });
-                
-                if (ctx.state === 'suspended') {
-                    log("Context suspended. Resuming...");
-                    await ctx.resume();
-                }
+                ctx = new AC({ latencyHint: 'playback' }); // 'playback' лучше для стабильности
+                if(ctx.state === 'suspended') await ctx.resume();
 
-                // TEST TONE (Проверка динамиков)
-                log("2. Playing Test Tone (BEEP)...");
-                const osc = ctx.createOscillator();
-                const g = ctx.createGain();
-                osc.connect(g);
-                g.connect(ctx.destination);
-                osc.start();
-                g.gain.value = 0.1;
-                osc.stop(ctx.currentTime + 0.2); // 200ms beep
+                // TEST BEEP (ГРОМКИЙ)
+                log("2. BEEP TEST...");
+                playBeep();
 
-                log("3. Requesting Mic...");
-                // Просим браузер не обрабатывать звук (даем сырой сигнал)
+                log("3. Mic Access...");
                 stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
-                        echoCancellation: false,
+                        echoCancellation: false, // Выключаем шумодав для музыки
                         noiseSuppression: false,
                         autoGainControl: false
                     }
                 });
-                
-                // Проверка: какие треки получили
-                const tracks = stream.getAudioTracks();
-                if (tracks.length > 0) {
-                    log(`Mic Info: ${tracks[0].label} (Ready: ${tracks[0].readyState})`);
-                } else {
-                    throw new Error("No audio tracks found!");
-                }
 
-                // --- AUDIO GRAPH ---
-                log("4. Building Graph...");
-                
-                bufLen = ctx.sampleRate * BUFFER_SIZE;
+                log("4. Setting up DSP...");
+                bufLen = ctx.sampleRate * BUFFER_SECS;
                 recBuffer = new Float32Array(bufLen);
 
                 source = ctx.createMediaStreamSource(stream);
-                analyser = ctx.createAnalyser();
-                analyser.fftSize = 2048;
-
-                // ВАЖНО: Хак для Chrome. Создаем ScriptProcessor, который пишет в буфер.
-                // Он ДОЛЖЕН быть подключен к destination, но громкость должна быть почти 0, но не 0.
+                
+                // ScriptProcessor для записи
                 recorder = ctx.createScriptProcessor(4096, 1, 1);
                 
-                const keepAliveGain = ctx.createGain();
-                keepAliveGain.gain.value = 0.0001; // ОЧЕНЬ ТИХО, но не ноль
+                // Mute hack for Chrome
+                const mute = ctx.createGain();
+                mute.gain.value = 0.0001;
 
-                // Цепочка: Mic -> Analyser -> Recorder -> Gain(Tiny) -> Speakers
-                source.connect(analyser);
                 source.connect(recorder);
-                recorder.connect(keepAliveGain);
-                keepAliveGain.connect(ctx.destination);
+                recorder.connect(mute);
+                mute.connect(ctx.destination);
 
-                // Логика записи
                 recorder.onaudioprocess = (e) => {
                     const input = e.inputBuffer.getChannelData(0);
-                    // Простая проверка громкости (RMS)
-                    let sum = 0;
-                    for (let i = 0; i < input.length; i++) {
-                        recBuffer[writeIdx] = input[i];
-                        sum += input[i] * input[i];
-                        writeIdx++;
-                        if (writeIdx >= bufLen) writeIdx = 0;
+                    // INPUT BOOST (Предусилитель)
+                    const boost = parseInt(boostSlider.value);
+                    
+                    let maxVal = 0;
+                    for(let i=0; i<input.length; i++) {
+                        // Умножаем сигнал на Boost
+                        let val = input[i] * boost;
+                        // Лимитер (Soft clip), чтобы не хрипело
+                        if(val > 1) val = 1;
+                        if(val < -1) val = -1;
+                        
+                        recBuffer[writePtr] = val;
+                        
+                        if(Math.abs(val) > maxVal) maxVal = Math.abs(val);
+                        
+                        writePtr++;
+                        if(writePtr >= bufLen) writePtr = 0;
                     }
-                    // Вывод уровня громкости на экран для отладки
-                    const rms = Math.sqrt(sum / input.length);
-                    const db = 20 * Math.log10(rms);
-                    volText.innerText = `LEVEL: ${rms.toFixed(4)} (${db.toFixed(1)} dB)`;
+
+                    // Обновляем статус громкости
+                    const db = 20 * Math.log10(maxVal);
+                    statusText.innerText = `LEVEL: ${db.toFixed(1)} dB (Boost x${boost})`;
                 };
 
-                // Запуск гранулятора
-                log("5. Starting Granular Engine...");
-                scheduleGrain();
-                draw();
-
+                log("5. Starting Engine...");
                 isRunning = true;
-                document.getElementById('btn').innerText = "STOP / RELOAD";
-                log("SUCCESS. TALK NOW.");
+                scheduleGrain();
+                
+                document.getElementById('btn').innerText = "STOP / RESET";
+                log("SUCCESS! Make some noise!");
 
-            } catch (err) {
-                log("CRITICAL ERROR: " + err.message);
-                alert("Error: " + err.message);
+            } catch(e) {
+                log("FAIL: " + e.message);
+                alert("Error: " + e.message);
             }
         }
 
-        // --- GRANULAR ENGINE (Simplified for stability) ---
-        let dryNode, wetNode, reverb;
-
-        // Создаем ревербератор и шины один раз
-        async function getReverb() {
-            if (reverb) return reverb;
-            const convo = ctx.createConvolver();
-            
-            // Генерируем импульс (2 секунды шума)
-            const len = ctx.sampleRate * 2;
-            const buf = ctx.createBuffer(2, len, ctx.sampleRate);
-            for(let c=0;c<2;c++){
-                const d = buf.getChannelData(c);
-                for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1-i/len, 2);
-            }
-            convo.buffer = buf;
-            
-            // Compressor Limiter
-            const comp = ctx.createDynamicsCompressor();
-            convo.connect(comp);
-            comp.connect(ctx.destination);
-            
-            return comp; // Возвращаем точку входа (компрессор, на самом деле лучше микшер)
+        function playBeep() {
+            const osc = ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.value = 440;
+            const g = ctx.createGain();
+            g.gain.value = 0.5;
+            osc.connect(g);
+            g.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.3);
         }
 
-        async function scheduleGrain() {
-            if (!isRunning) return;
+        function scheduleGrain() {
+            if(!isRunning) return;
             
-            const density = parseInt(document.getElementById('dens').value);
+            // Запускаем зерно
+            playGrain();
+            
+            // Визуальный миг
+            grainInd.style.opacity = 1;
+            setTimeout(() => grainInd.style.opacity = 0, 50);
+
+            // Следующее зерно через 50-100мс
+            setTimeout(scheduleGrain, Math.random() * 50 + 50);
+        }
+
+        function playGrain() {
+            // Берем настройки
             const size = parseFloat(document.getElementById('grain').value);
-
-            // Если буфер заполнен хотя бы немного
-            if (writeIdx > 1000 || recBuffer[bufLen-1] !== 0) {
-                playGrain(size);
-            }
-
-            setTimeout(scheduleGrain, density + Math.random()*20);
-        }
-
-        function playGrain(duration) {
-            const grainLen = Math.floor(duration * ctx.sampleRate);
+            const grainLen = Math.floor(size * ctx.sampleRate);
             
-            // Случайный отступ назад (0.1 - 1.5 сек)
-            const offset = Math.floor((Math.random() * 1.4 + 0.1) * ctx.sampleRate);
-            let readPos = writeIdx - offset;
-            if (readPos < 0) readPos += bufLen;
+            // Читаем из прошлого (0.2 сек назад)
+            // Добавляем случайность, чтобы не было "роботизированного" звука
+            const offset = Math.floor((0.2 + Math.random() * 0.5) * ctx.sampleRate);
+            
+            let readPos = writePtr - offset;
+            if(readPos < 0) readPos += bufLen;
 
-            // Копируем данные
             const buf = ctx.createBuffer(1, grainLen, ctx.sampleRate);
             const data = buf.getChannelData(0);
+
             for(let i=0; i<grainLen; i++) {
                 let idx = (readPos + i) % bufLen;
                 data[i] = recBuffer[idx];
@@ -287,45 +278,20 @@
 
             const src = ctx.createBufferSource();
             src.buffer = buf;
-            src.playbackRate.value = 0.5 + Math.random() * 0.5; // Pitch down
+            // Питч вниз для жирности
+            src.playbackRate.value = 0.5 + Math.random() * 0.5;
 
             const env = ctx.createGain();
-            env.gain.setValueAtTime(0, ctx.currentTime);
-            env.gain.linearRampToValueAtTime(0.5, ctx.currentTime + duration/2);
-            env.gain.linearRampToValueAtTime(0, ctx.currentTime + duration);
+            // Огибающая (Fade In/Out)
+            const t = ctx.currentTime;
+            env.gain.setValueAtTime(0, t);
+            env.gain.linearRampToValueAtTime(1.0, t + size/2);
+            env.gain.linearRampToValueAtTime(0, t + size);
 
-            // Simple Reverb send logic (creating impulse every time is expensive, let's fake it with long release for now or use global reverb)
-            // Для теста просто выводим в destination через Envelope
             src.connect(env);
             env.connect(ctx.destination);
             
             src.start();
-        }
-
-        // --- VISUALIZER ---
-        function draw() {
-            if(!isRunning) return;
-            requestAnimationFrame(draw);
-            
-            const len = analyser.frequencyBinCount;
-            const data = new Uint8Array(len);
-            analyser.getByteTimeDomainData(data);
-
-            cx.fillStyle = '#000';
-            cx.fillRect(0,0, cvs.width, cvs.height);
-            cx.strokeStyle = '#0f0';
-            cx.lineWidth = 2;
-            cx.beginPath();
-
-            const slice = cvs.width / len;
-            let x = 0;
-            for(let i=0; i<len; i++) {
-                const v = data[i] / 128.0;
-                const y = v * cvs.height/2;
-                i===0 ? cx.moveTo(x,y) : cx.lineTo(x,y);
-                x+=slice;
-            }
-            cx.stroke();
         }
 
     </script>
