@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FLUX: BOOSTED</title>
+    <title>FLUX: RECORDER</title>
     <style>
         body {
             background-color: #000;
@@ -14,20 +14,22 @@
             height: 100vh;
             margin: 0;
             overflow: hidden;
+            user-select: none;
         }
 
-        /* Верхняя панель логов */
+        /* LOGS */
         #log {
-            height: 30%;
+            height: 25%;
             overflow-y: auto;
             padding: 10px;
             font-size: 11px;
             border-bottom: 1px solid #333;
             white-space: pre-wrap;
             background: #050505;
+            color: #00ff00;
         }
 
-        /* Визуализация */
+        /* VIZ */
         #viz-area {
             flex-grow: 1;
             position: relative;
@@ -37,33 +39,34 @@
             border-bottom: 1px solid #333;
         }
 
-        /* Мигающий индикатор зерна */
         #grain-indicator {
-            width: 50px;
-            height: 50px;
+            width: 60px;
+            height: 60px;
             background: #fff;
             opacity: 0;
             border-radius: 50%;
             transition: opacity 0.05s;
+            box-shadow: 0 0 20px #fff;
         }
 
         .status-overlay {
             position: absolute;
-            bottom: 5px;
-            left: 5px;
-            font-size: 14px;
-            font-weight: bold;
+            bottom: 10px;
+            left: 10px;
+            font-size: 12px;
             color: #fff;
-            text-shadow: 0 1px 2px #000;
+            background: rgba(0,0,0,0.5);
+            padding: 5px;
         }
 
-        /* Управление */
+        /* CONTROLS */
         .controls {
             padding: 20px;
             background: #111;
             display: flex;
             flex-direction: column;
             gap: 15px;
+            padding-bottom: env(safe-area-inset-bottom, 20px);
         }
 
         .slider-row {
@@ -76,28 +79,56 @@
             display: flex;
             justify-content: space-between;
             font-size: 12px;
-            color: #aaa;
+            color: #888;
         }
 
-        input[type=range] {
-            width: 100%;
-            height: 30px; /* Большой палец */
+        input[type=range] { width: 100%; height: 30px; }
+
+        /* BUTTONS GRID */
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
         }
 
         button {
-            background: #0f0;
-            color: #000;
             border: none;
             padding: 20px;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             text-transform: uppercase;
+            cursor: pointer;
+            font-family: monospace;
         }
+
+        #btn-start { background: #0f0; color: #000; }
+        #btn-start:active { background: #0a0; }
+
+        #btn-rec { 
+            background: #333; 
+            color: #888; 
+            border: 1px solid #555;
+        }
+        
+        /* Recording State */
+        body.recording #btn-rec {
+            background: #f00;
+            color: #fff;
+            animation: pulse-rec 1s infinite;
+            border-color: #f00;
+        }
+
+        @keyframes pulse-rec {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+
     </style>
 </head>
 <body>
 
-    <div id="log">SYSTEM READY.<br>TAP START BELOW.</div>
+    <div id="log">SYSTEM READY.<br>1. START SYSTEM<br>2. ADJUST BOOST<br>3. PRESS REC</div>
 
     <div id="viz-area">
         <div id="grain-indicator"></div>
@@ -106,86 +137,101 @@
 
     <div class="controls">
         <div class="slider-row">
-            <label><span>INPUT BOOST (GROMKOST)</span><span id="val-boost">x5</span></label>
-            <input type="range" id="boost" min="1" max="20" step="1" value="5">
+            <label><span>INPUT BOOST (SENSITIVITY)</span><span id="val-boost">x5</span></label>
+            <input type="range" id="boost" min="1" max="50" step="1" value="5">
         </div>
         
         <div class="slider-row">
             <label>GRAIN SIZE</label>
-            <input type="range" id="grain" min="0.1" max="0.5" step="0.05" value="0.2">
+            <input type="range" id="grain" min="0.1" max="0.8" step="0.05" value="0.25">
         </div>
 
-        <button id="btn">START SYSTEM</button>
+        <div class="btn-grid">
+            <button id="btn-start">START SYSTEM</button>
+            <button id="btn-rec">REC</button>
+        </div>
     </div>
 
     <script>
-        // --- LOGGER ---
+        // --- UTILS ---
         const logEl = document.getElementById('log');
         function log(msg) {
             logEl.innerHTML = `> ${msg}\n` + logEl.innerHTML;
         }
-        window.onerror = (e) => {
-            // Игнорируем SCRIPT ERROR, он нам не мешает
-            if(e.toString().includes('Script error')) return;
-            log("ERR: " + e);
-        };
 
-        // --- GLOBALS ---
+        // --- VARS ---
         let ctx, stream, source, recorder;
+        let masterGain, destStream, mediaRecorder;
         let isRunning = false;
+        let isRecording = false;
+        let chunks = [];
         
         const BUFFER_SECS = 4;
         let recBuffer;
         let writePtr = 0;
         let bufLen = 0;
-        let grainTimer;
 
-        // UI Elements
+        // UI
         const boostSlider = document.getElementById('boost');
         const boostVal = document.getElementById('val-boost');
         const statusText = document.getElementById('status-text');
         const grainInd = document.getElementById('grain-indicator');
+        const btnStart = document.getElementById('btn-start');
+        const btnRec = document.getElementById('btn-rec');
 
         boostSlider.oninput = (e) => boostVal.innerText = "x" + e.target.value;
 
-        // --- MAIN ---
-        document.getElementById('btn').onclick = async function() {
+        // --- BUTTON HANDLERS ---
+        btnStart.onclick = async () => {
             if(isRunning) { location.reload(); return; }
-            await start();
+            await initAudio();
         };
 
-        async function start() {
+        btnRec.onclick = () => {
+            if(!isRunning) {
+                alert("Please START SYSTEM first!");
+                return;
+            }
+            toggleRecording();
+        };
+
+        // --- AUDIO ENGINE ---
+        async function initAudio() {
             try {
-                log("1. Init AudioContext...");
+                log("Init AudioContext...");
                 const AC = window.AudioContext || window.webkitAudioContext;
-                ctx = new AC({ latencyHint: 'playback' }); // 'playback' лучше для стабильности
+                ctx = new AC({ latencyHint: 'playback' });
                 if(ctx.state === 'suspended') await ctx.resume();
 
-                // TEST BEEP (ГРОМКИЙ)
-                log("2. BEEP TEST...");
-                playBeep();
+                // 1. MASTER BUS (The output mixer)
+                // Все зерна пойдут сюда, а отсюда -> в динамики И в рекордер
+                masterGain = ctx.createGain();
+                masterGain.gain.value = 1.0;
+                masterGain.connect(ctx.destination); // Слышим ушами
 
-                log("3. Mic Access...");
+                // Подготовка к записи (виртуальный кабель)
+                destStream = ctx.createMediaStreamDestination();
+                masterGain.connect(destStream); // Подключаем мастер к рекордеру
+
+                // Настройка MediaRecorder
+                setupMediaRecorder();
+
+                // 2. INPUT
+                log("Requesting Mic...");
                 stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: false, // Выключаем шумодав для музыки
-                        noiseSuppression: false,
-                        autoGainControl: false
-                    }
+                    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
                 });
 
-                log("4. Setting up DSP...");
+                // 3. BUFFER SYSTEM
                 bufLen = ctx.sampleRate * BUFFER_SECS;
                 recBuffer = new Float32Array(bufLen);
 
                 source = ctx.createMediaStreamSource(stream);
-                
-                // ScriptProcessor для записи
                 recorder = ctx.createScriptProcessor(4096, 1, 1);
                 
-                // Mute hack for Chrome
+                // Mute logic for input monitoring
                 const mute = ctx.createGain();
-                mute.gain.value = 0.0001;
+                mute.gain.value = 0.0001; 
 
                 source.connect(recorder);
                 recorder.connect(mute);
@@ -193,105 +239,174 @@
 
                 recorder.onaudioprocess = (e) => {
                     const input = e.inputBuffer.getChannelData(0);
-                    // INPUT BOOST (Предусилитель)
                     const boost = parseInt(boostSlider.value);
-                    
                     let maxVal = 0;
+
                     for(let i=0; i<input.length; i++) {
-                        // Умножаем сигнал на Boost
-                        let val = input[i] * boost;
-                        // Лимитер (Soft clip), чтобы не хрипело
-                        if(val > 1) val = 1;
-                        if(val < -1) val = -1;
+                        let val = input[i] * boost; // Software Pre-Amp
+                        // Soft Clipper
+                        if(val > 0.95) val = 0.95;
+                        if(val < -0.95) val = -0.95;
                         
                         recBuffer[writePtr] = val;
-                        
                         if(Math.abs(val) > maxVal) maxVal = Math.abs(val);
                         
                         writePtr++;
                         if(writePtr >= bufLen) writePtr = 0;
                     }
 
-                    // Обновляем статус громкости
-                    const db = 20 * Math.log10(maxVal);
-                    statusText.innerText = `LEVEL: ${db.toFixed(1)} dB (Boost x${boost})`;
+                    // Update UI db meter
+                    const db = 20 * Math.log10(maxVal + 0.00001);
+                    statusText.innerText = `LEVEL: ${db.toFixed(0)} dB`;
                 };
 
-                log("5. Starting Engine...");
+                // Play Start Beep
+                playBeep();
+
                 isRunning = true;
-                scheduleGrain();
+                btnStart.innerText = "RESET SYSTEM";
+                log("SYSTEM RUNNING. Ready to Record.");
                 
-                document.getElementById('btn').innerText = "STOP / RESET";
-                log("SUCCESS! Make some noise!");
+                // Start Granular Loop
+                scheduleGrain();
 
             } catch(e) {
-                log("FAIL: " + e.message);
-                alert("Error: " + e.message);
+                log("ERROR: " + e.message);
+                alert("Init Error: " + e.message);
             }
         }
 
-        function playBeep() {
-            const osc = ctx.createOscillator();
-            osc.type = 'sawtooth';
-            osc.frequency.value = 440;
-            const g = ctx.createGain();
-            g.gain.value = 0.5;
-            osc.connect(g);
-            g.connect(ctx.destination);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.3);
+        // --- RECORDING LOGIC ---
+        function setupMediaRecorder() {
+            // Пытаемся выбрать лучший формат для Android/iOS
+            let options = { mimeType: 'audio/webm' };
+            if (!MediaRecorder.isTypeSupported('audio/webm')) {
+                options = { mimeType: 'audio/mp4' }; // Fallback for Safari (sometimes)
+                if (!MediaRecorder.isTypeSupported('audio/mp4')) {
+                    options = {}; // Default browser choice
+                }
+            }
+
+            try {
+                mediaRecorder = new MediaRecorder(destStream.stream, options);
+            } catch (e) {
+                log("Recorder Init Failed, trying default: " + e);
+                mediaRecorder = new MediaRecorder(destStream.stream);
+            }
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                log("Saving file...");
+                const blob = new Blob(chunks, { type: 'audio/webm' });
+                const url = URL.createObjectURL(blob);
+                
+                // Auto Download
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                const timestamp = new Date().toISOString().slice(0,19).replace(/:/g,"-");
+                a.download = `flux_ambient_${timestamp}.webm`;
+                document.body.appendChild(a);
+                a.click();
+                
+                // Cleanup
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 100);
+                
+                chunks = []; // Reset buffer
+                log("File downloaded!");
+            };
         }
 
+        function toggleRecording() {
+            if(!isRecording) {
+                // START
+                chunks = [];
+                mediaRecorder.start();
+                isRecording = true;
+                document.body.classList.add('recording');
+                btnRec.innerText = "STOP & SAVE";
+                log("RECORDING STARTED...");
+            } else {
+                // STOP
+                mediaRecorder.stop();
+                isRecording = false;
+                document.body.classList.remove('recording');
+                btnRec.innerText = "REC";
+                log("RECORDING STOPPED. Processing...");
+            }
+        }
+
+        // --- GRANULAR ENGINE ---
         function scheduleGrain() {
             if(!isRunning) return;
-            
-            // Запускаем зерно
             playGrain();
             
-            // Визуальный миг
-            grainInd.style.opacity = 1;
-            setTimeout(() => grainInd.style.opacity = 0, 50);
+            // Visual Blink
+            grainInd.style.opacity = 0.8;
+            setTimeout(() => grainInd.style.opacity = 0, 100);
 
-            // Следующее зерно через 50-100мс
-            setTimeout(scheduleGrain, Math.random() * 50 + 50);
+            // Next grain timing
+            const delay = 50 + Math.random() * 80;
+            setTimeout(scheduleGrain, delay);
         }
 
         function playGrain() {
-            // Берем настройки
             const size = parseFloat(document.getElementById('grain').value);
             const grainLen = Math.floor(size * ctx.sampleRate);
             
-            // Читаем из прошлого (0.2 сек назад)
-            // Добавляем случайность, чтобы не было "роботизированного" звука
-            const offset = Math.floor((0.2 + Math.random() * 0.5) * ctx.sampleRate);
-            
+            // Random past position
+            const offset = Math.floor((0.1 + Math.random() * 1.5) * ctx.sampleRate);
             let readPos = writePtr - offset;
             if(readPos < 0) readPos += bufLen;
 
+            // Copy buffer
             const buf = ctx.createBuffer(1, grainLen, ctx.sampleRate);
             const data = buf.getChannelData(0);
-
             for(let i=0; i<grainLen; i++) {
                 let idx = (readPos + i) % bufLen;
                 data[i] = recBuffer[idx];
             }
 
+            // Source
             const src = ctx.createBufferSource();
             src.buffer = buf;
-            // Питч вниз для жирности
-            src.playbackRate.value = 0.5 + Math.random() * 0.5;
+            // Slow down for ambient texture (0.5x - 0.8x)
+            src.playbackRate.value = 0.5 + Math.random() * 0.3;
 
+            // Envelope
             const env = ctx.createGain();
-            // Огибающая (Fade In/Out)
             const t = ctx.currentTime;
             env.gain.setValueAtTime(0, t);
-            env.gain.linearRampToValueAtTime(1.0, t + size/2);
-            env.gain.linearRampToValueAtTime(0, t + size);
+            env.gain.linearRampToValueAtTime(0.6, t + size * 0.4); // Attack
+            env.gain.linearRampToValueAtTime(0, t + size);        // Release
 
+            // Panner (Stereo width)
+            const panner = ctx.createStereoPanner();
+            panner.pan.value = Math.random() * 2 - 1;
+
+            // CONNECTIONS
             src.connect(env);
-            env.connect(ctx.destination);
-            
+            env.connect(panner);
+            // CRITICAL: Connect to MASTER GAIN, not destination directly
+            panner.connect(masterGain); 
+
             src.start();
+        }
+
+        function playBeep() {
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.connect(g);
+            g.connect(masterGain); // Beep also goes to recording
+            osc.start();
+            g.gain.value = 0.2;
+            osc.stop(ctx.currentTime + 0.1);
         }
 
     </script>
