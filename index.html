@@ -3,507 +3,329 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>FLUX MONO FIXED</title>
+    <title>FLUX DEBUG</title>
     <style>
-        :root {
-            --bg: #000000;
-            --fg: #ffffff;
-            --dim: #444444;
-        }
-
         body {
-            background-color: var(--bg);
-            color: var(--fg);
-            font-family: "Courier New", Courier, monospace;
+            background-color: #000;
+            color: #fff;
+            font-family: monospace;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: space-between;
-            height: 100dvh; /* Используем dynamic viewport height */
+            height: 100vh;
             margin: 0;
             overflow: hidden;
-            touch-action: none;
-            -webkit-user-select: none;
-            user-select: none;
-        }
-
-        header {
-            width: 100%;
-            padding: 15px;
-            text-align: center;
-            border-bottom: 1px solid var(--dim);
-            letter-spacing: 2px;
-            font-weight: bold;
-            font-size: 14px;
-            z-index: 10;
-        }
-
-        /* Область визуализации */
-        #canvas-container {
-            position: relative;
-            flex-grow: 1;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: #050505;
-        }
-
-        canvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-
-        /* Консоль отладки на экране */
-        #debug-console {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            right: 10px;
-            font-size: 10px;
-            color: var(--dim);
-            text-align: center;
-            pointer-events: none;
-            white-space: pre-wrap; 
-            font-family: monospace;
-        }
-
-        .controls {
-            width: 100%;
-            padding: 20px;
-            background: var(--bg);
-            border-top: 1px solid var(--dim);
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            z-index: 10;
-            box-sizing: border-box;
-            /* Исправление для iPhone X+ safe area */
-            padding-bottom: env(safe-area-inset-bottom, 20px); 
-        }
-
-        /* Слайдеры */
-        .slider-group { display: flex; flex-direction: column; gap: 8px; }
-        .slider-label { display: flex; justify-content: space-between; font-size: 11px; text-transform: uppercase; color: #888; }
-        
-        input[type=range] {
-            -webkit-appearance: none;
-            width: 100%;
-            background: transparent;
-            margin: 0;
-        }
-        input[type=range]:focus { outline: none; }
-        
-        /* Дорожка слайдера */
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 2px;
-            cursor: pointer;
-            background: var(--dim);
-        }
-        input[type=range]::-moz-range-track {
-            width: 100%;
-            height: 2px;
-            cursor: pointer;
-            background: var(--dim);
-        }
-        
-        /* Ползунок */
-        input[type=range]::-webkit-slider-thumb {
-            height: 24px;
-            width: 24px;
-            border: 2px solid var(--fg);
-            background: #000;
-            cursor: pointer;
-            -webkit-appearance: none;
-            margin-top: -11px; /* Center */
-        }
-        input[type=range]::-moz-range-thumb {
-            height: 24px;
-            width: 24px;
-            border: 2px solid var(--fg);
-            background: #000;
-            cursor: pointer;
-        }
-
-        /* Главная кнопка */
-        #toggleBtn {
-            background: transparent;
-            color: var(--fg);
-            border: 2px solid var(--fg);
-            padding: 18px;
-            font-family: inherit;
-            font-size: 14px;
-            font-weight: bold;
             text-transform: uppercase;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            transition: 0.1s;
-        }
-        
-        #toggleBtn:active { background: var(--dim); }
-        
-        body.active #toggleBtn {
-            background: var(--fg);
-            color: var(--bg);
         }
 
-        .rec-dot {
-            width: 8px; height: 8px; background: currentColor; border-radius: 50%;
-            display: none;
+        /* --- LOG CONSOLE --- */
+        #log {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px;
+            font-size: 10px;
+            border-bottom: 1px solid #333;
+            color: #0f0; /* Green terminal style */
+            white-space: pre-wrap;
         }
-        body.active .rec-dot { display: block; animation: blink 1.5s infinite; }
-        @keyframes blink { 0% {opacity:1;} 50% {opacity:0.3;} 100% {opacity:1;} }
+
+        /* --- VISUALIZER --- */
+        #viz-container {
+            height: 150px;
+            width: 100%;
+            border-bottom: 1px solid #333;
+            position: relative;
+        }
+        canvas { width: 100%; height: 100%; display: block; }
+        
+        #vol-meter {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            font-size: 12px;
+            background: #000;
+            padding: 2px;
+        }
+
+        /* --- CONTROLS --- */
+        .controls {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background: #111;
+        }
+
+        button {
+            background: #fff;
+            color: #000;
+            border: none;
+            padding: 20px;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:active { background: #888; }
+
+        .slider-row { display: flex; justify-content: space-between; align-items: center; }
+        input[type=range] { flex-grow: 1; margin-left: 10px; }
 
     </style>
 </head>
 <body>
 
-    <header>FLUX // GRANULAR</header>
+    <div id="log">SYSTEM READY...<br>WAITING FOR USER INTERACTION...</div>
 
-    <div id="canvas-container">
-        <canvas id="vizCanvas"></canvas>
-        <div id="debug-console">STATUS: WAITING FOR INPUT</div>
+    <div id="viz-container">
+        <canvas id="c"></canvas>
+        <div id="vol-meter">MIC LEVEL: 0.00</div>
     </div>
 
     <div class="controls">
-        <div class="slider-group">
-            <div class="slider-label"><span>Grain Size</span><span id="val-size">0.15s</span></div>
-            <input type="range" id="grainSize" min="0.05" max="0.5" step="0.01" value="0.15">
+        <div class="slider-row">
+            <span>GRAIN</span>
+            <input type="range" id="grain" min="0.05" max="0.5" step="0.01" value="0.2">
         </div>
-
-        <div class="slider-group">
-            <div class="slider-label"><span>Density</span><span id="val-dens">Mid</span></div>
-            <input type="range" id="density" min="20" max="300" step="10" value="80" style="direction: rtl">
+        <div class="slider-row">
+            <span>DENS</span>
+            <input type="range" id="dens" min="20" max="300" step="10" value="80" style="direction: rtl">
         </div>
-
-        <div class="slider-group">
-            <div class="slider-label"><span>Reverb</span><span id="val-mix">60%</span></div>
-            <input type="range" id="verbMix" min="0" max="1" step="0.01" value="0.6">
-        </div>
-
-        <button id="toggleBtn">
-            <div class="rec-dot"></div>
-            <span id="btnText">START SYSTEM</span>
-        </button>
+        <button id="btn">START / INITIALIZE</button>
     </div>
 
     <script>
-        // --- Логирование на экран (чтобы понять ошибку на телефоне) ---
-        const debugConsole = document.getElementById('debug-console');
+        // --- LOGGER UTILITY ---
+        const logEl = document.getElementById('log');
         function log(msg) {
+            const time = new Date().toLocaleTimeString();
+            logEl.innerHTML += `[${time}] ${msg}<br>`;
+            logEl.scrollTop = logEl.scrollHeight;
             console.log(msg);
-            debugConsole.innerText = msg;
         }
-        window.onerror = function(msg, url, line) {
-            log("ERR: " + msg);
-            return false;
-        };
+        window.onerror = (msg) => log("JS ERROR: " + msg);
 
-        // --- UI ---
-        const btn = document.getElementById('toggleBtn');
-        const btnText = document.getElementById('btnText');
-        
-        // Обработка слайдеров
-        document.getElementById('grainSize').oninput = (e) => document.getElementById('val-size').innerText = e.target.value + 's';
-        document.getElementById('density').oninput = (e) => document.getElementById('val-dens').innerText = e.target.value + 'ms';
-        document.getElementById('verbMix').oninput = (e) => document.getElementById('val-mix').innerText = Math.round(e.target.value * 100) + '%';
-
-        // --- Аудио переменные ---
-        let audioCtx;
+        // --- VARS ---
+        let ctx, stream, source, analyser, recorder;
         let isRunning = false;
-        let stream;
         
-        // Граф
-        let sourceNode;   // Микрофон
-        let analyser;     // Визуализатор
-        let recorderNode; // Запись в буфер
-        let muteNode;     // Заглушка, чтобы не было фидбека
-        
-        // Эффекты
-        let compressor;
-        let reverbNode;
-        let dryGain, wetGain;
-
-        // Буфер
-        const BUFFER_SECS = 4;
-        let bufferL;
-        let writePtr = 0;
+        // Buffers
+        const BUFFER_SIZE = 5; // seconds
+        let recBuffer;
+        let writeIdx = 0;
         let bufLen = 0;
+        let grainTimer;
 
-        // Таймер генерации зерен
-        let grainTimeout;
-
-        // --- Visualizer ---
-        const canvas = document.getElementById('vizCanvas');
-        const ctx = canvas.getContext('2d');
-        let animationId;
+        // UI
+        const cvs = document.getElementById('c');
+        const cx = cvs.getContext('2d');
+        const volText = document.getElementById('vol-meter');
 
         function resize() {
-            canvas.width = canvas.parentElement.clientWidth;
-            canvas.height = canvas.parentElement.clientHeight;
+            cvs.width = cvs.clientWidth;
+            cvs.height = cvs.clientHeight;
         }
-        window.addEventListener('resize', resize);
+        window.onresize = resize;
         resize();
 
-        // --- START / STOP LOGIC ---
-        
-        btn.addEventListener('click', async () => {
-            if (!isRunning) {
-                await initAudio();
-            } else {
-                stopAudio();
+        // --- MAIN LOGIC ---
+        document.getElementById('btn').onclick = async () => {
+            if (isRunning) {
+                location.reload(); // Hard reset is safer
+                return;
             }
-        });
+            await init();
+        };
 
-        async function initAudio() {
+        async function init() {
             try {
-                log("Init: Creating AudioContext...");
+                log("1. Creating AudioContext...");
+                const AC = window.AudioContext || window.webkitAudioContext;
+                ctx = new AC({ latencyHint: 'interactive' });
                 
-                // 1. Создаем контекст (обязательно внутри клика для iOS)
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContext) throw new Error("WebAudio not supported");
-                
-                if (!audioCtx) audioCtx = new AudioContext({ latencyHint: 'interactive' });
-                
-                // 2. Обязательный 'resume' для iOS
-                if (audioCtx.state === 'suspended') {
-                    await audioCtx.resume();
+                if (ctx.state === 'suspended') {
+                    log("Context suspended. Resuming...");
+                    await ctx.resume();
                 }
 
-                log("Init: Requesting Mic...");
-                // 3. Запрос микрофона
+                // TEST TONE (Проверка динамиков)
+                log("2. Playing Test Tone (BEEP)...");
+                const osc = ctx.createOscillator();
+                const g = ctx.createGain();
+                osc.connect(g);
+                g.connect(ctx.destination);
+                osc.start();
+                g.gain.value = 0.1;
+                osc.stop(ctx.currentTime + 0.2); // 200ms beep
+
+                log("3. Requesting Mic...");
+                // Просим браузер не обрабатывать звук (даем сырой сигнал)
                 stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
-                        echoCancellation: false, // Важно для музыки
-                        autoGainControl: false,
-                        noiseSuppression: false
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
                     }
                 });
-
-                log("Init: Setup Graph...");
                 
-                // 4. Настройка буферов
-                bufLen = audioCtx.sampleRate * BUFFER_SECS;
-                bufferL = new Float32Array(bufLen);
-                writePtr = 0;
+                // Проверка: какие треки получили
+                const tracks = stream.getAudioTracks();
+                if (tracks.length > 0) {
+                    log(`Mic Info: ${tracks[0].label} (Ready: ${tracks[0].readyState})`);
+                } else {
+                    throw new Error("No audio tracks found!");
+                }
 
-                // 5. Создание узлов
-                sourceNode = audioCtx.createMediaStreamSource(stream);
-                analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 2048; // Лучшее разрешение для волны
-                analyser.smoothingTimeConstant = 0.2;
+                // --- AUDIO GRAPH ---
+                log("4. Building Graph...");
+                
+                bufLen = ctx.sampleRate * BUFFER_SIZE;
+                recBuffer = new Float32Array(bufLen);
 
-                // ScriptProcessor: 
-                // Создаем узел для захвата данных (deprecated, но работает везде)
-                // Размер буфера 4096 дает баланс между стабильностью и частотой обновления
-                recorderNode = audioCtx.createScriptProcessor(4096, 1, 1);
-                
-                // Mute Node: 
-                // Важнейший момент! Мы подключаем Recorder к выходу, но ставим громкость 0.
-                // Это заставляет браузер обрабатывать звук, но мы не слышим прямой сигнал (нет свиста).
-                muteNode = audioCtx.createGain();
-                muteNode.gain.value = 0;
+                source = ctx.createMediaStreamSource(stream);
+                analyser = ctx.createAnalyser();
+                analyser.fftSize = 2048;
 
-                // 6. Подключение (Routing)
+                // ВАЖНО: Хак для Chrome. Создаем ScriptProcessor, который пишет в буфер.
+                // Он ДОЛЖЕН быть подключен к destination, но громкость должна быть почти 0, но не 0.
+                recorder = ctx.createScriptProcessor(4096, 1, 1);
                 
-                // Ветка 1: Визуализация
-                sourceNode.connect(analyser);
-                
-                // Ветка 2: Запись в буфер
-                sourceNode.connect(recorderNode);
-                recorderNode.connect(muteNode);
-                muteNode.connect(audioCtx.destination); // Замыкаем цепь, чтобы процесс шел
+                const keepAliveGain = ctx.createGain();
+                keepAliveGain.gain.value = 0.0001; // ОЧЕНЬ ТИХО, но не ноль
+
+                // Цепочка: Mic -> Analyser -> Recorder -> Gain(Tiny) -> Speakers
+                source.connect(analyser);
+                source.connect(recorder);
+                recorder.connect(keepAliveGain);
+                keepAliveGain.connect(ctx.destination);
 
                 // Логика записи
-                recorderNode.onaudioprocess = (e) => {
+                recorder.onaudioprocess = (e) => {
                     const input = e.inputBuffer.getChannelData(0);
-                    // Пишем в кольцевой буфер
+                    // Простая проверка громкости (RMS)
+                    let sum = 0;
                     for (let i = 0; i < input.length; i++) {
-                        bufferL[writePtr] = input[i];
-                        writePtr++;
-                        if (writePtr >= bufLen) writePtr = 0;
+                        recBuffer[writeIdx] = input[i];
+                        sum += input[i] * input[i];
+                        writeIdx++;
+                        if (writeIdx >= bufLen) writeIdx = 0;
                     }
+                    // Вывод уровня громкости на экран для отладки
+                    const rms = Math.sqrt(sum / input.length);
+                    const db = 20 * Math.log10(rms);
+                    volText.innerText = `LEVEL: ${rms.toFixed(4)} (${db.toFixed(1)} dB)`;
                 };
 
-                // Ветка 3: Эффекты (Куда будут лететь зерна)
-                await setupEffects();
-
-                // 7. Запуск
-                scheduleGrain(); // Запуск мотора гранулятора
-                drawVisualizer(); // Запуск рисования
+                // Запуск гранулятора
+                log("5. Starting Granular Engine...");
+                scheduleGrain();
+                draw();
 
                 isRunning = true;
-                document.body.classList.add('active');
-                btnText.innerText = "STOP SYSTEM";
-                log("STATUS: RUNNING [REC]");
+                document.getElementById('btn').innerText = "STOP / RELOAD";
+                log("SUCCESS. TALK NOW.");
 
-            } catch (e) {
-                console.error(e);
-                log("ERROR: " + e.message);
-                alert("Ошибка доступа: " + e.message + "\n\n1. Проверьте HTTPS.\n2. Разрешите микрофон.\n3. Подключите наушники.");
+            } catch (err) {
+                log("CRITICAL ERROR: " + err.message);
+                alert("Error: " + err.message);
             }
         }
 
-        function stopAudio() {
-            clearTimeout(grainTimeout);
-            cancelAnimationFrame(animationId);
-            
-            if (sourceNode) sourceNode.disconnect();
-            if (recorderNode) recorderNode.disconnect();
-            if (muteNode) muteNode.disconnect();
-            if (stream) stream.getTracks().forEach(t => t.stop());
-            
-            // Очищаем Canvas
-            ctx.clearRect(0,0, canvas.width, canvas.height);
-            
-            isRunning = false;
-            document.body.classList.remove('active');
-            btnText.innerText = "START SYSTEM";
-            log("STATUS: STOPPED");
-        }
+        // --- GRANULAR ENGINE (Simplified for stability) ---
+        let dryNode, wetNode, reverb;
 
-        // --- Эффекты ---
-        async function setupEffects() {
-            compressor = audioCtx.createDynamicsCompressor();
-            compressor.threshold.value = -12;
+        // Создаем ревербератор и шины один раз
+        async function getReverb() {
+            if (reverb) return reverb;
+            const convo = ctx.createConvolver();
             
-            reverbNode = audioCtx.createConvolver();
-            // Генерируем "белый шум" как импульс для ревербератора
-            const tailSeconds = 3;
-            const length = audioCtx.sampleRate * tailSeconds;
-            const impulse = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
-            for (let ch = 0; ch < 2; ch++) {
-                const data = impulse.getChannelData(ch);
-                for (let i = 0; i < length; i++) {
-                    const decay = Math.pow(1 - i / length, 4); // Резкий спад
-                    data[i] = (Math.random() * 2 - 1) * decay;
-                }
+            // Генерируем импульс (2 секунды шума)
+            const len = ctx.sampleRate * 2;
+            const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+            for(let c=0;c<2;c++){
+                const d = buf.getChannelData(c);
+                for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1-i/len, 2);
             }
-            reverbNode.buffer = impulse;
-
-            dryGain = audioCtx.createGain();
-            wetGain = audioCtx.createGain();
-            updateMix();
-
-            // Выход эффектов -> Compressor -> Master
-            dryGain.connect(compressor);
-            wetGain.connect(reverbNode);
-            reverbNode.connect(compressor);
-            compressor.connect(audioCtx.destination);
+            convo.buffer = buf;
+            
+            // Compressor Limiter
+            const comp = ctx.createDynamicsCompressor();
+            convo.connect(comp);
+            comp.connect(ctx.destination);
+            
+            return comp; // Возвращаем точку входа (компрессор, на самом деле лучше микшер)
         }
 
-        function updateMix() {
-            if (!dryGain) return;
-            const val = parseFloat(document.getElementById('verbMix').value);
-            dryGain.gain.value = 1.0 - (val * 0.5);
-            wetGain.gain.value = val;
-        }
-        document.getElementById('verbMix').addEventListener('input', updateMix);
-
-        // --- Granular Engine (Сердце) ---
-        function scheduleGrain() {
+        async function scheduleGrain() {
             if (!isRunning) return;
+            
+            const density = parseInt(document.getElementById('dens').value);
+            const size = parseFloat(document.getElementById('grain').value);
 
-            const density = parseInt(document.getElementById('density').value);
-            // Случайный разброс времени старта следующего зерна
-            const nextTime = density + (Math.random() * 20); 
-            
-            playGrain();
-            
-            grainTimeout = setTimeout(scheduleGrain, nextTime);
+            // Если буфер заполнен хотя бы немного
+            if (writeIdx > 1000 || recBuffer[bufLen-1] !== 0) {
+                playGrain(size);
+            }
+
+            setTimeout(scheduleGrain, density + Math.random()*20);
         }
 
-        function playGrain() {
-            // Если буфер еще пуст (начало работы), не играем
-            if (writePtr < 1000 && bufLen === 0) return;
-
-            const grainSize = parseFloat(document.getElementById('grainSize').value);
-            const grainLen = Math.floor(grainSize * audioCtx.sampleRate);
+        function playGrain(duration) {
+            const grainLen = Math.floor(duration * ctx.sampleRate);
             
-            // Берем кусок из прошлого (от 0.2с до 2с назад)
-            // Важно: отступаем от writePtr, чтобы не читать то, что сейчас пишется
-            const offset = Math.floor((Math.random() * 1.8 + 0.2) * audioCtx.sampleRate);
-            let readPos = writePtr - offset;
+            // Случайный отступ назад (0.1 - 1.5 сек)
+            const offset = Math.floor((Math.random() * 1.4 + 0.1) * ctx.sampleRate);
+            let readPos = writeIdx - offset;
             if (readPos < 0) readPos += bufLen;
 
-            // Создаем буфер для одного зерна
-            const buffer = audioCtx.createBuffer(1, grainLen, audioCtx.sampleRate);
-            const data = buffer.getChannelData(0);
-
             // Копируем данные
-            for (let i = 0; i < grainLen; i++) {
-                let idx = readPos + i;
-                if (idx >= bufLen) idx -= bufLen; // Кольцо
-                data[i] = bufferL[idx];
+            const buf = ctx.createBuffer(1, grainLen, ctx.sampleRate);
+            const data = buf.getChannelData(0);
+            for(let i=0; i<grainLen; i++) {
+                let idx = (readPos + i) % bufLen;
+                data[i] = recBuffer[idx];
             }
 
-            // Создаем источник звука
-            const src = audioCtx.createBufferSource();
-            src.buffer = buffer;
+            const src = ctx.createBufferSource();
+            src.buffer = buf;
+            src.playbackRate.value = 0.5 + Math.random() * 0.5; // Pitch down
 
-            // Питч (замедление/ускорение)
-            // 0.5 = октава вниз, 1.0 = нормально
-            const rate = 0.5 + Math.random() * 0.7; 
-            src.playbackRate.value = rate;
+            const env = ctx.createGain();
+            env.gain.setValueAtTime(0, ctx.currentTime);
+            env.gain.linearRampToValueAtTime(0.5, ctx.currentTime + duration/2);
+            env.gain.linearRampToValueAtTime(0, ctx.currentTime + duration);
 
-            // Огибающая (Envelope) - чтобы убрать щелчки
-            const env = audioCtx.createGain();
-            const now = audioCtx.currentTime;
-            env.gain.setValueAtTime(0, now);
-            env.gain.linearRampToValueAtTime(0.8, now + (grainSize * 0.2)); // Attack
-            env.gain.linearRampToValueAtTime(0, now + grainSize);       // Release
-
-            // Панорама
-            const panner = audioCtx.createStereoPanner();
-            panner.pan.value = Math.random() * 2 - 1;
-
-            // Соединяем
+            // Simple Reverb send logic (creating impulse every time is expensive, let's fake it with long release for now or use global reverb)
+            // Для теста просто выводим в destination через Envelope
             src.connect(env);
-            env.connect(panner);
-            panner.connect(dryGain);
-            panner.connect(wetGain);
-
+            env.connect(ctx.destination);
+            
             src.start();
         }
 
-        // --- Визуализация (Осциллограмма) ---
-        function drawVisualizer() {
-            if (!isRunning) return;
-            animationId = requestAnimationFrame(drawVisualizer);
+        // --- VISUALIZER ---
+        function draw() {
+            if(!isRunning) return;
+            requestAnimationFrame(draw);
+            
+            const len = analyser.frequencyBinCount;
+            const data = new Uint8Array(len);
+            analyser.getByteTimeDomainData(data);
 
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            analyser.getByteTimeDomainData(dataArray);
+            cx.fillStyle = '#000';
+            cx.fillRect(0,0, cvs.width, cvs.height);
+            cx.strokeStyle = '#0f0';
+            cx.lineWidth = 2;
+            cx.beginPath();
 
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = '#ffffff';
-            ctx.beginPath();
-
-            const sliceWidth = canvas.width * 1.0 / bufferLength;
+            const slice = cvs.width / len;
             let x = 0;
-
-            for (let i = 0; i < bufferLength; i++) {
-                const v = dataArray[i] / 128.0; // 1.0 - центр (тишина)
-                const y = v * (canvas.height / 2);
-
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-
-                x += sliceWidth;
+            for(let i=0; i<len; i++) {
+                const v = data[i] / 128.0;
+                const y = v * cvs.height/2;
+                i===0 ? cx.moveTo(x,y) : cx.lineTo(x,y);
+                x+=slice;
             }
-
-            ctx.lineTo(canvas.width, canvas.height / 2);
-            ctx.stroke();
+            cx.stroke();
         }
 
     </script>
