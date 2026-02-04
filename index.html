@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FLUX: MORPH</title>
+    <title>FLUX: FINAL</title>
     <style>
         body {
             background-color: #000;
@@ -12,9 +12,11 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            height: 100dvh; /* Mobile fix */
             margin: 0;
             overflow: hidden;
             user-select: none;
+            -webkit-user-select: none;
         }
 
         /* --- VISUALS --- */
@@ -28,33 +30,34 @@
             border-bottom: 1px solid #333;
         }
 
-        /* Индикатор режима: Reality vs Dream */
         #mode-label {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: bold;
-            letter-spacing: 5px;
+            letter-spacing: 4px;
             color: #555;
-            transition: color 0.2s;
+            transition: color 0.3s;
+            margin-bottom: 10px;
         }
 
+        /* Анимация круга при генерации зерна */
         #grain-indicator {
-            width: 10px; height: 10px;
+            width: 12px; height: 12px;
             background: #fff;
             border-radius: 50%;
-            margin-top: 20px;
             opacity: 0;
-            box-shadow: 0 0 15px #fff;
+            box-shadow: 0 0 20px #fff;
+            transition: opacity 0.1s;
         }
 
-        .warning-text {
+        /* Таймер записи */
+        #rec-timer {
             position: absolute;
-            top: 10px;
-            color: #ffaa00;
-            font-size: 10px;
-            background: rgba(20,20,0,0.8);
-            padding: 5px;
-            border-radius: 4px;
-            display: none; /* Show only when monitoring */
+            bottom: 10px;
+            right: 10px;
+            font-size: 14px;
+            color: #f00;
+            display: none;
+            font-weight: bold;
         }
 
         /* --- CONTROLS --- */
@@ -64,61 +67,61 @@
             display: flex;
             flex-direction: column;
             gap: 20px;
-            padding-bottom: env(safe-area-inset-bottom, 20px);
+            padding-bottom: env(safe-area-inset-bottom, 25px);
         }
 
-        /* Слайдер MORPH - Самый главный */
-        .morph-container {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
+        .morph-container { display: flex; flex-direction: column; gap: 5px; }
         
         .morph-labels {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            color: #888;
-            font-weight: bold;
+            display: flex; justify-content: space-between;
+            font-size: 11px; color: #666; font-weight: bold;
         }
 
         input[type=range] { width: 100%; height: 30px; -webkit-appearance: none; background: transparent; }
         
-        /* Стилизация ползунка */
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
             height: 28px; width: 28px;
-            background: #fff;
-            border-radius: 50%;
+            background: #fff; border-radius: 50%;
             margin-top: -12px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            box-shadow: 0 2px 5px #000;
         }
         input[type=range]::-webkit-slider-runnable-track {
             width: 100%; height: 4px; background: #333; border-radius: 2px;
         }
 
-        /* Обычные кнопки */
-        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        
         button {
-            border: none; padding: 15px;
+            border: none; padding: 18px;
             font-size: 14px; font-weight: bold;
             text-transform: uppercase; cursor: pointer;
-            font-family: monospace;
+            font-family: monospace; border-radius: 4px;
+            transition: all 0.2s;
         }
-        #btn-start { background: #0f0; color: #000; }
-        #btn-rec { background: #333; color: #ccc; }
+
+        /* POWER BTN STYLES */
+        #btn-power { background: #eee; color: #000; }
+        #btn-power.active { background: #333; color: #eee; border: 1px solid #555; }
+
+        /* REC BTN STYLES */
+        #btn-rec { background: #222; color: #666; border: 1px solid #333; }
         
-        body.recording #btn-rec { background: #f00; color: #fff; animation: pulse 1s infinite; }
-        @keyframes pulse { 50% { opacity: 0.5; } }
+        /* Active Recording */
+        body.recording #btn-rec { 
+            background: #900; color: #fff; border-color: #f00;
+            animation: pulse-rec 1.5s infinite; 
+        }
+        @keyframes pulse-rec { 50% { opacity: 0.6; } }
 
     </style>
 </head>
 <body>
 
     <div id="viz-area">
-        <div class="warning-text" id="fb-warn">⚠️ USE HEADPHONES TO AVOID FEEDBACK</div>
-        <div id="mode-label">REALITY</div>
+        <div id="mode-label">STANDBY</div>
         <div id="grain-indicator"></div>
+        <div id="rec-timer">00:00</div>
     </div>
 
     <div class="controls">
@@ -127,250 +130,339 @@
             <div class="morph-labels">
                 <span>MIC (DRY)</span>
                 <span>MIX</span>
-                <span>AMBIENT (WET)</span>
+                <span>SYNTH (WET)</span>
             </div>
             <input type="range" id="morph" min="0" max="100" value="100" step="1">
         </div>
 
         <!-- SETTINGS -->
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; gap: 15px;">
             <div style="flex:1">
-                <label style="font-size: 10px; color:#666">BOOST</label>
-                <input type="range" id="boost" min="1" max="20" value="3">
+                <label style="font-size: 10px; color:#666">SENSITIVITY</label>
+                <input type="range" id="boost" min="1" max="15" value="4">
             </div>
             <div style="flex:1">
                 <label style="font-size: 10px; color:#666">GRAIN SIZE</label>
-                <input type="range" id="grain" min="0.1" max="0.5" step="0.05" value="0.2">
+                <input type="range" id="grain" min="0.1" max="0.6" step="0.05" value="0.25">
             </div>
         </div>
 
         <div class="btn-grid">
-            <button id="btn-start">POWER ON</button>
+            <button id="btn-power">POWER ON</button>
             <button id="btn-rec">REC</button>
         </div>
     </div>
 
     <script>
-        // --- VARS ---
-        let ctx, stream, source, recorder;
-        let masterGain, dryGain, wetGain; // Новые узлы микшера
+        // --- GLOBALS ---
+        let audioCtx;
+        let stream, source, recorderNode;
+        let masterGain, dryGain, wetGain;
         let destStream, mediaRecorder;
         
         let isRunning = false;
         let isRecording = false;
-        let chunks = [];
+        let recChunks = [];
+        let recStartTime = 0;
+        let recTimerInterval;
         
+        // Circular Buffer
         const BUFFER_SECS = 4;
         let recBuffer;
         let writePtr = 0;
         let bufLen = 0;
+        let grainTimeout;
 
-        // --- UI ---
+        // UI Refs
+        const btnPower = document.getElementById('btn-power');
+        const btnRec = document.getElementById('btn-rec');
         const morphSlider = document.getElementById('morph');
         const modeLabel = document.getElementById('mode-label');
-        const fbWarn = document.getElementById('fb-warn');
         const grainInd = document.getElementById('grain-indicator');
-        const btnStart = document.getElementById('btn-start');
-        const btnRec = document.getElementById('btn-rec');
+        const recTimerDisp = document.getElementById('rec-timer');
 
-        // Логика слайдера MORPH
-        morphSlider.oninput = updateMix;
-
-        function updateMix() {
-            if(!dryGain || !wetGain) return;
-            
-            // 0..1 value
-            const val = parseInt(morphSlider.value) / 100;
-            
-            // Crossfade Logic
-            // Dry (Mic) goes 1 -> 0
-            dryGain.gain.value = 1.0 - val;
-            
-            // Wet (Synth) goes 0 -> 1
-            wetGain.gain.value = val;
-
-            // UI feedback
-            if(val < 0.1) {
-                modeLabel.innerText = "REALITY";
-                modeLabel.style.color = "#fff";
-                fbWarn.style.display = "block"; // Показываем предупреждение
-            } else if (val > 0.9) {
-                modeLabel.innerText = "DREAM";
-                modeLabel.style.color = "#0f0";
-                fbWarn.style.display = "none";
+        // --- POWER LOGIC ---
+        btnPower.onclick = async () => {
+            if (!isRunning) {
+                await startSystem();
             } else {
-                modeLabel.innerText = "MORPHING...";
-                modeLabel.style.color = "#888";
+                stopSystem();
             }
-        }
-
-        // --- INIT ---
-        btnStart.onclick = async () => {
-            if(isRunning) return;
-            await initAudio();
         };
 
-        async function initAudio() {
+        async function startSystem() {
             try {
+                // 1. Init Context
                 const AC = window.AudioContext || window.webkitAudioContext;
-                ctx = new AC({ latencyHint: 'interactive' });
-                if(ctx.state === 'suspended') await ctx.resume();
+                audioCtx = new AC({ latencyHint: 'interactive' });
+                
+                // iOS Unlock
+                if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-                // 1. MIXER ARCHITECTURE
-                masterGain = ctx.createGain(); // Финальная громкость
-                masterGain.connect(ctx.destination);
+                // 2. Routing Setup
+                masterGain = audioCtx.createGain();
+                masterGain.gain.value = 1.0;
+                masterGain.connect(audioCtx.destination); // Headphones Output
 
-                dryGain = ctx.createGain(); // Канал чистого микрофона
-                wetGain = ctx.createGain(); // Канал гранулятора
-
+                dryGain = audioCtx.createGain();
+                wetGain = audioCtx.createGain();
                 dryGain.connect(masterGain);
                 wetGain.connect(masterGain);
 
-                // Setup Recorder Destination
-                destStream = ctx.createMediaStreamDestination();
-                masterGain.connect(destStream); // Пишем то, что слышим (Mix)
-                setupRecorder();
+                // Recorder Line Setup
+                destStream = audioCtx.createMediaStreamDestination();
+                masterGain.connect(destStream); 
+                setupMediaRecorder();
 
-                // 2. INPUT
+                // 3. Microphone (Critical for Headphones)
                 stream = await navigator.mediaDevices.getUserMedia({
-                    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+                    audio: { 
+                        echoCancellation: false, // Essential for music, but tricky for feedback
+                        noiseSuppression: false, 
+                        autoGainControl: false 
+                    }
                 });
-                source = ctx.createMediaStreamSource(stream);
 
-                // 3. ROUTING
-                // Ветка А: Мониторинг (Микрофон -> DryGain -> Выход)
+                // 4. Processing Chain
+                source = audioCtx.createMediaStreamSource(stream);
+                
+                // Route A: Monitor (Dry)
                 source.connect(dryGain);
 
-                // Ветка Б: Запись в буфер для синтеза
-                bufLen = ctx.sampleRate * BUFFER_SECS;
+                // Route B: Capture (Buffer)
+                bufLen = audioCtx.sampleRate * BUFFER_SECS;
                 recBuffer = new Float32Array(bufLen);
                 
-                // Chrome Hack (ScriptProcessor needs output)
-                recorder = ctx.createScriptProcessor(4096, 1, 1);
-                const mute = ctx.createGain(); mute.gain.value = 0;
+                // ScriptProcessor for raw data access
+                recorderNode = audioCtx.createScriptProcessor(4096, 1, 1);
+                recorderNode.onaudioprocess = processAudioInput;
                 
-                source.connect(recorder);
-                recorder.connect(mute);
-                mute.connect(ctx.destination);
+                // Keep-alive hack
+                const muteNode = audioCtx.createGain();
+                muteNode.gain.value = 0;
+                source.connect(recorderNode);
+                recorderNode.connect(muteNode);
+                muteNode.connect(audioCtx.destination);
 
-                recorder.onaudioprocess = (e) => {
-                    const input = e.inputBuffer.getChannelData(0);
-                    const boost = parseInt(document.getElementById('boost').value);
-                    for(let i=0; i<input.length; i++) {
-                        let v = input[i] * boost;
-                        // Soft Clip
-                        if(v>1) v=1; if(v<-1) v=-1;
-                        
-                        recBuffer[writePtr] = v;
-                        writePtr = (writePtr + 1) % bufLen;
-                    }
-                };
-
-                // Применяем начальное положение слайдера
-                updateMix();
-
-                // 4. START ENGINE
+                // UI Update
                 isRunning = true;
-                btnStart.innerText = "SYSTEM ACTIVE";
-                btnStart.disabled = true;
-                btnStart.style.opacity = 0.5;
+                btnPower.innerText = "POWER OFF";
+                btnPower.classList.add('active');
+                updateMix(); // Apply slider value
                 
-                playBeep(); // Test sound
-                scheduleGrain(); // Start Granulator
+                // Start Engines
+                scheduleGrain();
+                playBeep(); // Confirmation sound
 
-            } catch (e) {
-                alert("Error: " + e.message);
+            } catch (err) {
+                alert("Ошибка запуска: " + err.message + "\nПопробуйте переподключить наушники.");
+                console.error(err);
+                stopSystem();
+            }
+        }
+
+        function stopSystem() {
+            // Stop Loops
+            clearTimeout(grainTimeout);
+            clearInterval(recTimerInterval);
+
+            // Stop Recording if active
+            if(isRecording) stopRecording();
+
+            // Disconnect Audio
+            if(source) source.disconnect();
+            if(recorderNode) recorderNode.disconnect();
+            if(stream) stream.getTracks().forEach(t => t.stop());
+            if(audioCtx) audioCtx.close();
+
+            // Reset UI
+            isRunning = false;
+            btnPower.innerText = "POWER ON";
+            btnPower.classList.remove('active');
+            modeLabel.innerText = "STANDBY";
+            modeLabel.style.color = "#555";
+            recTimerDisp.style.display = 'none';
+        }
+
+        // --- AUDIO PROCESSING ---
+        function processAudioInput(e) {
+            const input = e.inputBuffer.getChannelData(0);
+            const boost = parseInt(document.getElementById('boost').value);
+            
+            for(let i=0; i<input.length; i++) {
+                let v = input[i] * boost;
+                // Soft Limiter
+                if(v > 1) v = 1; 
+                if(v < -1) v = -1;
+                
+                recBuffer[writePtr] = v;
+                writePtr = (writePtr + 1) % bufLen;
             }
         }
 
         // --- GRANULAR ENGINE ---
         function scheduleGrain() {
             if(!isRunning) return;
-            
-            // Если WetGain почти ноль, мы не тратим ресурсы на создание звука?
-            // Нет, лучше пусть работает, чтобы переход был бесшовным.
             playGrain();
             
-            // Visual Blink (только если мы в режиме Dream или Mix)
+            // Visual Blink (Only if Wet Mix is audible)
             if(parseInt(morphSlider.value) > 10) {
                 grainInd.style.opacity = 1;
                 setTimeout(() => grainInd.style.opacity = 0, 50);
             }
 
-            setTimeout(scheduleGrain, 50 + Math.random() * 50);
+            // Next grain
+            grainTimeout = setTimeout(scheduleGrain, 60 + Math.random() * 60);
         }
 
         function playGrain() {
             const size = parseFloat(document.getElementById('grain').value);
-            const len = Math.floor(size * ctx.sampleRate);
-            const offset = Math.floor((0.1 + Math.random()) * ctx.sampleRate);
+            const len = Math.floor(size * audioCtx.sampleRate);
             
+            // Random Past
+            const offset = Math.floor((0.15 + Math.random() * 1.5) * audioCtx.sampleRate);
             let rPos = writePtr - offset;
             if(rPos < 0) rPos += bufLen;
 
-            const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+            // Create Buffer
+            const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
             const dat = buf.getChannelData(0);
+            // Copy loop
             for(let i=0; i<len; i++) {
                 dat[i] = recBuffer[(rPos + i) % bufLen];
             }
 
-            const src = ctx.createBufferSource();
+            // Source
+            const src = audioCtx.createBufferSource();
             src.buffer = buf;
-            src.playbackRate.value = 0.5 + Math.random()*0.5;
+            src.playbackRate.value = 0.5 + Math.random()*0.5; // Pitch Down
 
-            const env = ctx.createGain();
-            const t = ctx.currentTime;
+            // Envelope
+            const env = audioCtx.createGain();
+            const t = audioCtx.currentTime;
             env.gain.setValueAtTime(0, t);
-            env.gain.linearRampToValueAtTime(1, t + size/2);
+            env.gain.linearRampToValueAtTime(1, t + size * 0.4);
             env.gain.linearRampToValueAtTime(0, t + size);
 
-            const pan = ctx.createStereoPanner();
+            // Panner
+            const pan = audioCtx.createStereoPanner();
             pan.pan.value = Math.random()*2 - 1;
 
-            // ВАЖНО: Подключаем к WET шине
+            // Route to Wet
             src.connect(env);
             env.connect(pan);
-            pan.connect(wetGain); 
+            pan.connect(wetGain);
 
             src.start();
         }
 
-        // --- RECORDER ---
-        function setupRecorder() {
+        // --- MIXER LOGIC ---
+        morphSlider.oninput = updateMix;
+        function updateMix() {
+            if(!isRunning) return;
+            const val = parseInt(morphSlider.value);
+            const norm = val / 100;
+
+            // Crossfade
+            dryGain.gain.value = 1.0 - norm;
+            wetGain.gain.value = norm;
+
+            // Label
+            if(val < 10) {
+                modeLabel.innerText = "REALITY (MIC)";
+                modeLabel.style.color = "#fff";
+            } else if (val > 90) {
+                modeLabel.innerText = "DREAM (SYNTH)";
+                modeLabel.style.color = "#0f0";
+            } else {
+                modeLabel.innerText = "MORPHING...";
+                modeLabel.style.color = "#888";
+            }
+        }
+
+        // --- RECORDING LOGIC ---
+        function setupMediaRecorder() {
+            // Detect support
+            let mimeType = 'audio/webm';
+            if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/mp4'; // Safari fallback
+
             try {
-                mediaRecorder = new MediaRecorder(destStream.stream);
-                mediaRecorder.ondataavailable = e => chunks.push(e.data);
-                mediaRecorder.onstop = () => {
-                    const blob = new Blob(chunks, {type:'audio/webm'});
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'flux_morph.webm';
-                    a.click();
-                    chunks = [];
-                };
-                
-                btnRec.onclick = () => {
-                    if(isRecording) {
-                        mediaRecorder.stop();
-                        isRecording = false;
-                        document.body.classList.remove('recording');
-                        btnRec.innerText = "REC";
-                    } else {
-                        mediaRecorder.start();
-                        isRecording = true;
-                        document.body.classList.add('recording');
-                        btnRec.innerText = "STOP";
-                    }
-                };
-            } catch(e) { console.log(e); }
+                mediaRecorder = new MediaRecorder(destStream.stream, { mimeType: mimeType });
+            } catch(e) {
+                mediaRecorder = new MediaRecorder(destStream.stream); // Generic fallback
+            }
+
+            mediaRecorder.ondataavailable = e => {
+                if(e.data.size > 0) recChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = saveRecording;
+        }
+
+        btnRec.onclick = () => {
+            if(!isRunning) return;
+            if(!isRecording) startRecording();
+            else stopRecording();
+        };
+
+        function startRecording() {
+            recChunks = [];
+            mediaRecorder.start();
+            isRecording = true;
+            document.body.classList.add('recording');
+            recTimerDisp.style.display = 'block';
+            recStartTime = Date.now();
+            
+            // Timer Update
+            recTimerInterval = setInterval(() => {
+                const diff = Math.floor((Date.now() - recStartTime) / 1000);
+                const m = Math.floor(diff / 60).toString().padStart(2,'0');
+                const s = (diff % 60).toString().padStart(2,'0');
+                recTimerDisp.innerText = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function stopRecording() {
+            mediaRecorder.stop(); // Triggers onstop -> saveRecording
+            isRecording = false;
+            document.body.classList.remove('recording');
+            clearInterval(recTimerInterval);
+            recTimerDisp.innerText = "SAVING...";
+            
+            // Blink effect on save
+            setTimeout(() => {
+                recTimerDisp.style.display = 'none';
+                recTimerDisp.innerText = "00:00";
+            }, 3000);
+        }
+
+        function saveRecording() {
+            const blob = new Blob(recChunks, { type: 'audio/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            
+            // Timestamp name
+            const now = new Date();
+            const timeStr = now.getHours() + "-" + now.getMinutes() + "-" + now.getSeconds();
+            a.download = `flux_recording_${timeStr}.webm`;
+            
+            document.body.appendChild(a);
+            a.click();
+            
+            // Cleanup
+            setTimeout(() => {
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            }, 100);
         }
 
         function playBeep() {
-            const o = ctx.createOscillator();
-            const g = ctx.createGain();
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
             o.connect(g); g.connect(masterGain);
-            o.start(); g.gain.value = 0.1; o.stop(ctx.currentTime+0.1);
+            o.start(); g.gain.value = 0.1; o.stop(audioCtx.currentTime+0.15);
         }
 
     </script>
