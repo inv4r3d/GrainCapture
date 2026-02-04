@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FLUX: RECORDER</title>
+    <title>FLUX: MORPH</title>
     <style>
         body {
             background-color: #000;
-            color: #0f0;
+            color: #eee;
             font-family: monospace;
             display: flex;
             flex-direction: column;
@@ -17,151 +17,145 @@
             user-select: none;
         }
 
-        /* LOGS */
-        #log {
-            height: 25%;
-            overflow-y: auto;
-            padding: 10px;
-            font-size: 11px;
-            border-bottom: 1px solid #333;
-            white-space: pre-wrap;
-            background: #050505;
-            color: #00ff00;
-        }
-
-        /* VIZ */
+        /* --- VISUALS --- */
         #viz-area {
             flex-grow: 1;
             position: relative;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             border-bottom: 1px solid #333;
         }
 
+        /* Индикатор режима: Reality vs Dream */
+        #mode-label {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 5px;
+            color: #555;
+            transition: color 0.2s;
+        }
+
         #grain-indicator {
-            width: 60px;
-            height: 60px;
+            width: 10px; height: 10px;
             background: #fff;
-            opacity: 0;
             border-radius: 50%;
-            transition: opacity 0.05s;
-            box-shadow: 0 0 20px #fff;
+            margin-top: 20px;
+            opacity: 0;
+            box-shadow: 0 0 15px #fff;
         }
 
-        .status-overlay {
+        .warning-text {
             position: absolute;
-            bottom: 10px;
-            left: 10px;
-            font-size: 12px;
-            color: #fff;
-            background: rgba(0,0,0,0.5);
+            top: 10px;
+            color: #ffaa00;
+            font-size: 10px;
+            background: rgba(20,20,0,0.8);
             padding: 5px;
+            border-radius: 4px;
+            display: none; /* Show only when monitoring */
         }
 
-        /* CONTROLS */
+        /* --- CONTROLS --- */
         .controls {
             padding: 20px;
             background: #111;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 20px;
             padding-bottom: env(safe-area-inset-bottom, 20px);
         }
 
-        .slider-row {
+        /* Слайдер MORPH - Самый главный */
+        .morph-container {
             display: flex;
             flex-direction: column;
             gap: 5px;
         }
         
-        .slider-row label {
+        .morph-labels {
             display: flex;
             justify-content: space-between;
             font-size: 12px;
             color: #888;
-        }
-
-        input[type=range] { width: 100%; height: 30px; }
-
-        /* BUTTONS GRID */
-        .btn-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        button {
-            border: none;
-            padding: 20px;
-            font-size: 16px;
             font-weight: bold;
-            text-transform: uppercase;
-            cursor: pointer;
+        }
+
+        input[type=range] { width: 100%; height: 30px; -webkit-appearance: none; background: transparent; }
+        
+        /* Стилизация ползунка */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 28px; width: 28px;
+            background: #fff;
+            border-radius: 50%;
+            margin-top: -12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; background: #333; border-radius: 2px;
+        }
+
+        /* Обычные кнопки */
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button {
+            border: none; padding: 15px;
+            font-size: 14px; font-weight: bold;
+            text-transform: uppercase; cursor: pointer;
             font-family: monospace;
         }
-
         #btn-start { background: #0f0; color: #000; }
-        #btn-start:active { background: #0a0; }
-
-        #btn-rec { 
-            background: #333; 
-            color: #888; 
-            border: 1px solid #555;
-        }
+        #btn-rec { background: #333; color: #ccc; }
         
-        /* Recording State */
-        body.recording #btn-rec {
-            background: #f00;
-            color: #fff;
-            animation: pulse-rec 1s infinite;
-            border-color: #f00;
-        }
-
-        @keyframes pulse-rec {
-            0% { opacity: 1; }
-            50% { opacity: 0.6; }
-            100% { opacity: 1; }
-        }
+        body.recording #btn-rec { background: #f00; color: #fff; animation: pulse 1s infinite; }
+        @keyframes pulse { 50% { opacity: 0.5; } }
 
     </style>
 </head>
 <body>
 
-    <div id="log">SYSTEM READY.<br>1. START SYSTEM<br>2. ADJUST BOOST<br>3. PRESS REC</div>
-
     <div id="viz-area">
+        <div class="warning-text" id="fb-warn">⚠️ USE HEADPHONES TO AVOID FEEDBACK</div>
+        <div id="mode-label">REALITY</div>
         <div id="grain-indicator"></div>
-        <div class="status-overlay" id="status-text">MIC: OFF</div>
     </div>
 
     <div class="controls">
-        <div class="slider-row">
-            <label><span>INPUT BOOST (SENSITIVITY)</span><span id="val-boost">x5</span></label>
-            <input type="range" id="boost" min="1" max="50" step="1" value="5">
+        <!-- MORPH SLIDER -->
+        <div class="morph-container">
+            <div class="morph-labels">
+                <span>MIC (DRY)</span>
+                <span>MIX</span>
+                <span>AMBIENT (WET)</span>
+            </div>
+            <input type="range" id="morph" min="0" max="100" value="100" step="1">
         </div>
-        
-        <div class="slider-row">
-            <label>GRAIN SIZE</label>
-            <input type="range" id="grain" min="0.1" max="0.8" step="0.05" value="0.25">
+
+        <!-- SETTINGS -->
+        <div style="display: flex; gap: 10px;">
+            <div style="flex:1">
+                <label style="font-size: 10px; color:#666">BOOST</label>
+                <input type="range" id="boost" min="1" max="20" value="3">
+            </div>
+            <div style="flex:1">
+                <label style="font-size: 10px; color:#666">GRAIN SIZE</label>
+                <input type="range" id="grain" min="0.1" max="0.5" step="0.05" value="0.2">
+            </div>
         </div>
 
         <div class="btn-grid">
-            <button id="btn-start">START SYSTEM</button>
+            <button id="btn-start">POWER ON</button>
             <button id="btn-rec">REC</button>
         </div>
     </div>
 
     <script>
-        // --- UTILS ---
-        const logEl = document.getElementById('log');
-        function log(msg) {
-            logEl.innerHTML = `> ${msg}\n` + logEl.innerHTML;
-        }
-
         // --- VARS ---
         let ctx, stream, source, recorder;
-        let masterGain, destStream, mediaRecorder;
+        let masterGain, dryGain, wetGain; // Новые узлы микшера
+        let destStream, mediaRecorder;
+        
         let isRunning = false;
         let isRecording = false;
         let chunks = [];
@@ -171,242 +165,212 @@
         let writePtr = 0;
         let bufLen = 0;
 
-        // UI
-        const boostSlider = document.getElementById('boost');
-        const boostVal = document.getElementById('val-boost');
-        const statusText = document.getElementById('status-text');
+        // --- UI ---
+        const morphSlider = document.getElementById('morph');
+        const modeLabel = document.getElementById('mode-label');
+        const fbWarn = document.getElementById('fb-warn');
         const grainInd = document.getElementById('grain-indicator');
         const btnStart = document.getElementById('btn-start');
         const btnRec = document.getElementById('btn-rec');
 
-        boostSlider.oninput = (e) => boostVal.innerText = "x" + e.target.value;
+        // Логика слайдера MORPH
+        morphSlider.oninput = updateMix;
 
-        // --- BUTTON HANDLERS ---
+        function updateMix() {
+            if(!dryGain || !wetGain) return;
+            
+            // 0..1 value
+            const val = parseInt(morphSlider.value) / 100;
+            
+            // Crossfade Logic
+            // Dry (Mic) goes 1 -> 0
+            dryGain.gain.value = 1.0 - val;
+            
+            // Wet (Synth) goes 0 -> 1
+            wetGain.gain.value = val;
+
+            // UI feedback
+            if(val < 0.1) {
+                modeLabel.innerText = "REALITY";
+                modeLabel.style.color = "#fff";
+                fbWarn.style.display = "block"; // Показываем предупреждение
+            } else if (val > 0.9) {
+                modeLabel.innerText = "DREAM";
+                modeLabel.style.color = "#0f0";
+                fbWarn.style.display = "none";
+            } else {
+                modeLabel.innerText = "MORPHING...";
+                modeLabel.style.color = "#888";
+            }
+        }
+
+        // --- INIT ---
         btnStart.onclick = async () => {
-            if(isRunning) { location.reload(); return; }
+            if(isRunning) return;
             await initAudio();
         };
 
-        btnRec.onclick = () => {
-            if(!isRunning) {
-                alert("Please START SYSTEM first!");
-                return;
-            }
-            toggleRecording();
-        };
-
-        // --- AUDIO ENGINE ---
         async function initAudio() {
             try {
-                log("Init AudioContext...");
                 const AC = window.AudioContext || window.webkitAudioContext;
-                ctx = new AC({ latencyHint: 'playback' });
+                ctx = new AC({ latencyHint: 'interactive' });
                 if(ctx.state === 'suspended') await ctx.resume();
 
-                // 1. MASTER BUS (The output mixer)
-                // Все зерна пойдут сюда, а отсюда -> в динамики И в рекордер
-                masterGain = ctx.createGain();
-                masterGain.gain.value = 1.0;
-                masterGain.connect(ctx.destination); // Слышим ушами
+                // 1. MIXER ARCHITECTURE
+                masterGain = ctx.createGain(); // Финальная громкость
+                masterGain.connect(ctx.destination);
 
-                // Подготовка к записи (виртуальный кабель)
+                dryGain = ctx.createGain(); // Канал чистого микрофона
+                wetGain = ctx.createGain(); // Канал гранулятора
+
+                dryGain.connect(masterGain);
+                wetGain.connect(masterGain);
+
+                // Setup Recorder Destination
                 destStream = ctx.createMediaStreamDestination();
-                masterGain.connect(destStream); // Подключаем мастер к рекордеру
-
-                // Настройка MediaRecorder
-                setupMediaRecorder();
+                masterGain.connect(destStream); // Пишем то, что слышим (Mix)
+                setupRecorder();
 
                 // 2. INPUT
-                log("Requesting Mic...");
                 stream = await navigator.mediaDevices.getUserMedia({
                     audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
                 });
+                source = ctx.createMediaStreamSource(stream);
 
-                // 3. BUFFER SYSTEM
+                // 3. ROUTING
+                // Ветка А: Мониторинг (Микрофон -> DryGain -> Выход)
+                source.connect(dryGain);
+
+                // Ветка Б: Запись в буфер для синтеза
                 bufLen = ctx.sampleRate * BUFFER_SECS;
                 recBuffer = new Float32Array(bufLen);
-
-                source = ctx.createMediaStreamSource(stream);
-                recorder = ctx.createScriptProcessor(4096, 1, 1);
                 
-                // Mute logic for input monitoring
-                const mute = ctx.createGain();
-                mute.gain.value = 0.0001; 
-
+                // Chrome Hack (ScriptProcessor needs output)
+                recorder = ctx.createScriptProcessor(4096, 1, 1);
+                const mute = ctx.createGain(); mute.gain.value = 0;
+                
                 source.connect(recorder);
                 recorder.connect(mute);
                 mute.connect(ctx.destination);
 
                 recorder.onaudioprocess = (e) => {
                     const input = e.inputBuffer.getChannelData(0);
-                    const boost = parseInt(boostSlider.value);
-                    let maxVal = 0;
-
+                    const boost = parseInt(document.getElementById('boost').value);
                     for(let i=0; i<input.length; i++) {
-                        let val = input[i] * boost; // Software Pre-Amp
-                        // Soft Clipper
-                        if(val > 0.95) val = 0.95;
-                        if(val < -0.95) val = -0.95;
+                        let v = input[i] * boost;
+                        // Soft Clip
+                        if(v>1) v=1; if(v<-1) v=-1;
                         
-                        recBuffer[writePtr] = val;
-                        if(Math.abs(val) > maxVal) maxVal = Math.abs(val);
-                        
-                        writePtr++;
-                        if(writePtr >= bufLen) writePtr = 0;
+                        recBuffer[writePtr] = v;
+                        writePtr = (writePtr + 1) % bufLen;
                     }
-
-                    // Update UI db meter
-                    const db = 20 * Math.log10(maxVal + 0.00001);
-                    statusText.innerText = `LEVEL: ${db.toFixed(0)} dB`;
                 };
 
-                // Play Start Beep
-                playBeep();
+                // Применяем начальное положение слайдера
+                updateMix();
 
+                // 4. START ENGINE
                 isRunning = true;
-                btnStart.innerText = "RESET SYSTEM";
-                log("SYSTEM RUNNING. Ready to Record.");
+                btnStart.innerText = "SYSTEM ACTIVE";
+                btnStart.disabled = true;
+                btnStart.style.opacity = 0.5;
                 
-                // Start Granular Loop
-                scheduleGrain();
+                playBeep(); // Test sound
+                scheduleGrain(); // Start Granulator
 
-            } catch(e) {
-                log("ERROR: " + e.message);
-                alert("Init Error: " + e.message);
-            }
-        }
-
-        // --- RECORDING LOGIC ---
-        function setupMediaRecorder() {
-            // Пытаемся выбрать лучший формат для Android/iOS
-            let options = { mimeType: 'audio/webm' };
-            if (!MediaRecorder.isTypeSupported('audio/webm')) {
-                options = { mimeType: 'audio/mp4' }; // Fallback for Safari (sometimes)
-                if (!MediaRecorder.isTypeSupported('audio/mp4')) {
-                    options = {}; // Default browser choice
-                }
-            }
-
-            try {
-                mediaRecorder = new MediaRecorder(destStream.stream, options);
             } catch (e) {
-                log("Recorder Init Failed, trying default: " + e);
-                mediaRecorder = new MediaRecorder(destStream.stream);
-            }
-
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) chunks.push(e.data);
-            };
-
-            mediaRecorder.onstop = () => {
-                log("Saving file...");
-                const blob = new Blob(chunks, { type: 'audio/webm' });
-                const url = URL.createObjectURL(blob);
-                
-                // Auto Download
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                const timestamp = new Date().toISOString().slice(0,19).replace(/:/g,"-");
-                a.download = `flux_ambient_${timestamp}.webm`;
-                document.body.appendChild(a);
-                a.click();
-                
-                // Cleanup
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                    window.URL.revokeObjectURL(url);
-                }, 100);
-                
-                chunks = []; // Reset buffer
-                log("File downloaded!");
-            };
-        }
-
-        function toggleRecording() {
-            if(!isRecording) {
-                // START
-                chunks = [];
-                mediaRecorder.start();
-                isRecording = true;
-                document.body.classList.add('recording');
-                btnRec.innerText = "STOP & SAVE";
-                log("RECORDING STARTED...");
-            } else {
-                // STOP
-                mediaRecorder.stop();
-                isRecording = false;
-                document.body.classList.remove('recording');
-                btnRec.innerText = "REC";
-                log("RECORDING STOPPED. Processing...");
+                alert("Error: " + e.message);
             }
         }
 
         // --- GRANULAR ENGINE ---
         function scheduleGrain() {
             if(!isRunning) return;
+            
+            // Если WetGain почти ноль, мы не тратим ресурсы на создание звука?
+            // Нет, лучше пусть работает, чтобы переход был бесшовным.
             playGrain();
             
-            // Visual Blink
-            grainInd.style.opacity = 0.8;
-            setTimeout(() => grainInd.style.opacity = 0, 100);
+            // Visual Blink (только если мы в режиме Dream или Mix)
+            if(parseInt(morphSlider.value) > 10) {
+                grainInd.style.opacity = 1;
+                setTimeout(() => grainInd.style.opacity = 0, 50);
+            }
 
-            // Next grain timing
-            const delay = 50 + Math.random() * 80;
-            setTimeout(scheduleGrain, delay);
+            setTimeout(scheduleGrain, 50 + Math.random() * 50);
         }
 
         function playGrain() {
             const size = parseFloat(document.getElementById('grain').value);
-            const grainLen = Math.floor(size * ctx.sampleRate);
+            const len = Math.floor(size * ctx.sampleRate);
+            const offset = Math.floor((0.1 + Math.random()) * ctx.sampleRate);
             
-            // Random past position
-            const offset = Math.floor((0.1 + Math.random() * 1.5) * ctx.sampleRate);
-            let readPos = writePtr - offset;
-            if(readPos < 0) readPos += bufLen;
+            let rPos = writePtr - offset;
+            if(rPos < 0) rPos += bufLen;
 
-            // Copy buffer
-            const buf = ctx.createBuffer(1, grainLen, ctx.sampleRate);
-            const data = buf.getChannelData(0);
-            for(let i=0; i<grainLen; i++) {
-                let idx = (readPos + i) % bufLen;
-                data[i] = recBuffer[idx];
+            const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+            const dat = buf.getChannelData(0);
+            for(let i=0; i<len; i++) {
+                dat[i] = recBuffer[(rPos + i) % bufLen];
             }
 
-            // Source
             const src = ctx.createBufferSource();
             src.buffer = buf;
-            // Slow down for ambient texture (0.5x - 0.8x)
-            src.playbackRate.value = 0.5 + Math.random() * 0.3;
+            src.playbackRate.value = 0.5 + Math.random()*0.5;
 
-            // Envelope
             const env = ctx.createGain();
             const t = ctx.currentTime;
             env.gain.setValueAtTime(0, t);
-            env.gain.linearRampToValueAtTime(0.6, t + size * 0.4); // Attack
-            env.gain.linearRampToValueAtTime(0, t + size);        // Release
+            env.gain.linearRampToValueAtTime(1, t + size/2);
+            env.gain.linearRampToValueAtTime(0, t + size);
 
-            // Panner (Stereo width)
-            const panner = ctx.createStereoPanner();
-            panner.pan.value = Math.random() * 2 - 1;
+            const pan = ctx.createStereoPanner();
+            pan.pan.value = Math.random()*2 - 1;
 
-            // CONNECTIONS
+            // ВАЖНО: Подключаем к WET шине
             src.connect(env);
-            env.connect(panner);
-            // CRITICAL: Connect to MASTER GAIN, not destination directly
-            panner.connect(masterGain); 
+            env.connect(pan);
+            pan.connect(wetGain); 
 
             src.start();
         }
 
+        // --- RECORDER ---
+        function setupRecorder() {
+            try {
+                mediaRecorder = new MediaRecorder(destStream.stream);
+                mediaRecorder.ondataavailable = e => chunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, {type:'audio/webm'});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'flux_morph.webm';
+                    a.click();
+                    chunks = [];
+                };
+                
+                btnRec.onclick = () => {
+                    if(isRecording) {
+                        mediaRecorder.stop();
+                        isRecording = false;
+                        document.body.classList.remove('recording');
+                        btnRec.innerText = "REC";
+                    } else {
+                        mediaRecorder.start();
+                        isRecording = true;
+                        document.body.classList.add('recording');
+                        btnRec.innerText = "STOP";
+                    }
+                };
+            } catch(e) { console.log(e); }
+        }
+
         function playBeep() {
-            const osc = ctx.createOscillator();
+            const o = ctx.createOscillator();
             const g = ctx.createGain();
-            osc.connect(g);
-            g.connect(masterGain); // Beep also goes to recording
-            osc.start();
-            g.gain.value = 0.2;
-            osc.stop(ctx.currentTime + 0.1);
+            o.connect(g); g.connect(masterGain);
+            o.start(); g.gain.value = 0.1; o.stop(ctx.currentTime+0.1);
         }
 
     </script>
