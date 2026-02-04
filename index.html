@@ -4,13 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>FLUX MONO</title>
+    <title>FLUX MONO FIXED</title>
     <style>
         :root {
             --bg: #000000;
             --fg: #ffffff;
             --dim: #444444;
-            --accent: #ffffff;
         }
 
         body {
@@ -21,35 +20,35 @@
             flex-direction: column;
             align-items: center;
             justify-content: space-between;
-            height: 100vh; /* Fallback */
-            height: 100dvh; /* Mobile viewport fix */
+            height: 100dvh; /* Используем dynamic viewport height */
             margin: 0;
             overflow: hidden;
-            touch-action: none; /* Отключаем жесты браузера */
+            touch-action: none;
             -webkit-user-select: none;
             user-select: none;
         }
 
-        /* --- UI Header --- */
         header {
             width: 100%;
-            padding: 20px;
+            padding: 15px;
             text-align: center;
             border-bottom: 1px solid var(--dim);
-            letter-spacing: 4px;
-            text-transform: uppercase;
-            font-size: 1.2rem;
-            box-sizing: border-box;
+            letter-spacing: 2px;
+            font-weight: bold;
+            font-size: 14px;
+            z-index: 10;
         }
 
-        /* --- Visualizer --- */
+        /* Область визуализации */
         #canvas-container {
+            position: relative;
             flex-grow: 1;
             width: 100%;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            position: relative;
+            background: #050505;
         }
 
         canvas {
@@ -58,344 +57,414 @@
             display: block;
         }
 
-        .status-text {
+        /* Консоль отладки на экране */
+        #debug-console {
             position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
             font-size: 10px;
             color: var(--dim);
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: none;
+            white-space: pre-wrap; 
+            font-family: monospace;
         }
 
-        /* --- Controls Area --- */
         .controls {
             width: 100%;
-            padding: 20px 20px 40px 20px;
+            padding: 20px;
             background: var(--bg);
             border-top: 1px solid var(--dim);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 10;
             box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            gap: 25px;
+            /* Исправление для iPhone X+ safe area */
+            padding-bottom: env(safe-area-inset-bottom, 20px); 
         }
 
-        /* --- Sliders --- */
-        .slider-group {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .slider-label {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            text-transform: uppercase;
-        }
-
+        /* Слайдеры */
+        .slider-group { display: flex; flex-direction: column; gap: 8px; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 11px; text-transform: uppercase; color: #888; }
+        
         input[type=range] {
             -webkit-appearance: none;
             width: 100%;
             background: transparent;
+            margin: 0;
         }
-
         input[type=range]:focus { outline: none; }
-
-        /* Track */
+        
+        /* Дорожка слайдера */
         input[type=range]::-webkit-slider-runnable-track {
             width: 100%;
             height: 2px;
             cursor: pointer;
             background: var(--dim);
-            border-radius: 0px;
+        }
+        input[type=range]::-moz-range-track {
+            width: 100%;
+            height: 2px;
+            cursor: pointer;
+            background: var(--dim);
         }
         
-        /* Thumb (Handle) */
+        /* Ползунок */
         input[type=range]::-webkit-slider-thumb {
-            height: 20px;
-            width: 20px;
-            border-radius: 0; /* Квадратные ручки */
-            background: var(--bg);
+            height: 24px;
+            width: 24px;
             border: 2px solid var(--fg);
+            background: #000;
             cursor: pointer;
             -webkit-appearance: none;
-            margin-top: -10px; /* Center on track */
+            margin-top: -11px; /* Center */
+        }
+        input[type=range]::-moz-range-thumb {
+            height: 24px;
+            width: 24px;
+            border: 2px solid var(--fg);
+            background: #000;
+            cursor: pointer;
         }
 
-        /* --- Main Button --- */
+        /* Главная кнопка */
         #toggleBtn {
             background: transparent;
             color: var(--fg);
             border: 2px solid var(--fg);
-            padding: 20px;
+            padding: 18px;
             font-family: inherit;
-            font-size: 16px;
-            text-transform: uppercase;
+            font-size: 14px;
             font-weight: bold;
+            text-transform: uppercase;
             cursor: pointer;
-            transition: all 0.2s;
-            width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
             gap: 10px;
+            transition: 0.1s;
         }
-
-        #toggleBtn:active {
-            transform: scale(0.98);
-        }
-
-        /* Active State style */
+        
+        #toggleBtn:active { background: var(--dim); }
+        
         body.active #toggleBtn {
             background: var(--fg);
             color: var(--bg);
         }
 
-        /* Индикатор записи */
         .rec-dot {
-            width: 10px;
-            height: 10px;
-            background: var(--fg);
-            border-radius: 50%;
+            width: 8px; height: 8px; background: currentColor; border-radius: 50%;
             display: none;
         }
-        body.active .rec-dot { display: block; animation: blink 2s infinite; }
-
-        @keyframes blink { 0% {opacity:1;} 50% {opacity:0.2;} 100% {opacity:1;} }
-
-        /* Warning Overlay for Orientation/Headphones */
-        #overlay {
-            display: none; /* JS will show if needed */
-        }
+        body.active .rec-dot { display: block; animation: blink 1.5s infinite; }
+        @keyframes blink { 0% {opacity:1;} 50% {opacity:0.3;} 100% {opacity:1;} }
 
     </style>
 </head>
 <body>
 
-    <header>Flux Mono</header>
+    <header>FLUX // GRANULAR</header>
 
     <div id="canvas-container">
         <canvas id="vizCanvas"></canvas>
-        <div class="status-text" id="statusMsg">READY TO INITIALIZE</div>
+        <div id="debug-console">STATUS: WAITING FOR INPUT</div>
     </div>
 
     <div class="controls">
-        
         <div class="slider-group">
-            <div class="slider-label"><span>Grain Size</span><span id="val-size">0.2s</span></div>
-            <input type="range" id="grainSize" min="0.05" max="0.5" step="0.01" value="0.2">
+            <div class="slider-label"><span>Grain Size</span><span id="val-size">0.15s</span></div>
+            <input type="range" id="grainSize" min="0.05" max="0.5" step="0.01" value="0.15">
         </div>
 
         <div class="slider-group">
-            <div class="slider-label"><span>Density</span><span id="val-dens">High</span></div>
-            <!-- Инвертируем визуально: влево (мало мс) = густо, вправо (много мс) = редко -->
-            <input type="range" id="density" min="20" max="400" step="10" value="100" style="direction: rtl">
+            <div class="slider-label"><span>Density</span><span id="val-dens">Mid</span></div>
+            <input type="range" id="density" min="20" max="300" step="10" value="80" style="direction: rtl">
         </div>
 
         <div class="slider-group">
-            <div class="slider-label"><span>Atmosphere</span><span id="val-mix">70%</span></div>
-            <input type="range" id="verbMix" min="0" max="1" step="0.01" value="0.7">
+            <div class="slider-label"><span>Reverb</span><span id="val-mix">60%</span></div>
+            <input type="range" id="verbMix" min="0" max="1" step="0.01" value="0.6">
         </div>
 
         <button id="toggleBtn">
             <div class="rec-dot"></div>
-            <span id="btnText">INITIALIZE SYSTEM</span>
+            <span id="btnText">START SYSTEM</span>
         </button>
     </div>
 
     <script>
-        // --- UI Logic ---
+        // --- Логирование на экран (чтобы понять ошибку на телефоне) ---
+        const debugConsole = document.getElementById('debug-console');
+        function log(msg) {
+            console.log(msg);
+            debugConsole.innerText = msg;
+        }
+        window.onerror = function(msg, url, line) {
+            log("ERR: " + msg);
+            return false;
+        };
+
+        // --- UI ---
         const btn = document.getElementById('toggleBtn');
         const btnText = document.getElementById('btnText');
-        const statusMsg = document.getElementById('statusMsg');
-        const body = document.body;
         
-        // Sliders feedback
+        // Обработка слайдеров
         document.getElementById('grainSize').oninput = (e) => document.getElementById('val-size').innerText = e.target.value + 's';
-        document.getElementById('density').oninput = (e) => document.getElementById('val-dens').innerText = e.target.value < 100 ? "MAX" : (e.target.value > 300 ? "LOW" : "MID");
+        document.getElementById('density').oninput = (e) => document.getElementById('val-dens').innerText = e.target.value + 'ms';
         document.getElementById('verbMix').oninput = (e) => document.getElementById('val-mix').innerText = Math.round(e.target.value * 100) + '%';
 
-        // --- Audio Globals ---
+        // --- Аудио переменные ---
         let audioCtx;
         let isRunning = false;
-        let micStream;
-        let sourceNode, recorderNode;
-        let schedulerInterval;
-        let analyser;
+        let stream;
         
-        // Buffers
-        const BUFFER_SECS = 4; // Меньше для мобильных (экономия памяти)
-        let audioBufferL;
-        let writePointer = 0;
-        let bufferLength = 0;
+        // Граф
+        let sourceNode;   // Микрофон
+        let analyser;     // Визуализатор
+        let recorderNode; // Запись в буфер
+        let muteNode;     // Заглушка, чтобы не было фидбека
+        
+        // Эффекты
+        let compressor;
+        let reverbNode;
+        let dryGain, wetGain;
 
-        // Nodes
-        let dryGain, wetGain, compressor, reverbNode;
+        // Буфер
+        const BUFFER_SECS = 4;
+        let bufferL;
+        let writePtr = 0;
+        let bufLen = 0;
 
-        // --- Canvas Visualizer ---
+        // Таймер генерации зерен
+        let grainTimeout;
+
+        // --- Visualizer ---
         const canvas = document.getElementById('vizCanvas');
         const ctx = canvas.getContext('2d');
-        let drawVisual;
+        let animationId;
 
-        function resizeCanvas() {
-            canvas.width = canvas.parentElement.offsetWidth;
-            canvas.height = canvas.parentElement.offsetHeight;
+        function resize() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
         }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        window.addEventListener('resize', resize);
+        resize();
 
-        // --- Core Audio Logic ---
-
+        // --- START / STOP LOGIC ---
+        
         btn.addEventListener('click', async () => {
             if (!isRunning) {
-                await startAudio();
+                await initAudio();
             } else {
                 stopAudio();
             }
         });
 
-        async function startAudio() {
+        async function initAudio() {
             try {
-                btnText.innerText = "STARTING...";
+                log("Init: Creating AudioContext...");
                 
-                // 1. Context Init (iOS Hack: Create context inside user gesture)
-                if (!audioCtx) {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)({
-                        latencyHint: 'interactive'
-                    });
-                }
+                // 1. Создаем контекст (обязательно внутри клика для iOS)
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) throw new Error("WebAudio not supported");
                 
-                // iOS: Resume if suspended
+                if (!audioCtx) audioCtx = new AudioContext({ latencyHint: 'interactive' });
+                
+                // 2. Обязательный 'resume' для iOS
                 if (audioCtx.state === 'suspended') {
                     await audioCtx.resume();
                 }
 
-                // 2. Microphone Access
-                // На мобильных важно просить 'echoCancellation: false', иначе звук будет "задыхаться"
-                micStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: { 
-                        echoCancellation: false, 
-                        noiseSuppression: false,
-                        autoGainControl: false 
-                    } 
+                log("Init: Requesting Mic...");
+                // 3. Запрос микрофона
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: false, // Важно для музыки
+                        autoGainControl: false,
+                        noiseSuppression: false
+                    }
                 });
 
-                // 3. Setup Buffers
-                bufferLength = audioCtx.sampleRate * BUFFER_SECS;
-                audioBufferL = new Float32Array(bufferLength);
-                writePointer = 0;
+                log("Init: Setup Graph...");
+                
+                // 4. Настройка буферов
+                bufLen = audioCtx.sampleRate * BUFFER_SECS;
+                bufferL = new Float32Array(bufLen);
+                writePtr = 0;
 
-                // 4. Setup Graph
-                sourceNode = audioCtx.createMediaStreamSource(micStream);
+                // 5. Создание узлов
+                sourceNode = audioCtx.createMediaStreamSource(stream);
                 analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 256; // Low resolution for performance style
+                analyser.fftSize = 2048; // Лучшее разрешение для волны
+                analyser.smoothingTimeConstant = 0.2;
 
-                // Recorder (ScriptProcessor is simpler for single-file demo than AudioWorklet)
+                // ScriptProcessor: 
+                // Создаем узел для захвата данных (deprecated, но работает везде)
+                // Размер буфера 4096 дает баланс между стабильностью и частотой обновления
                 recorderNode = audioCtx.createScriptProcessor(4096, 1, 1);
+                
+                // Mute Node: 
+                // Важнейший момент! Мы подключаем Recorder к выходу, но ставим громкость 0.
+                // Это заставляет браузер обрабатывать звук, но мы не слышим прямой сигнал (нет свиста).
+                muteNode = audioCtx.createGain();
+                muteNode.gain.value = 0;
+
+                // 6. Подключение (Routing)
+                
+                // Ветка 1: Визуализация
+                sourceNode.connect(analyser);
+                
+                // Ветка 2: Запись в буфер
+                sourceNode.connect(recorderNode);
+                recorderNode.connect(muteNode);
+                muteNode.connect(audioCtx.destination); // Замыкаем цепь, чтобы процесс шел
+
+                // Логика записи
                 recorderNode.onaudioprocess = (e) => {
                     const input = e.inputBuffer.getChannelData(0);
+                    // Пишем в кольцевой буфер
                     for (let i = 0; i < input.length; i++) {
-                        audioBufferL[writePointer] = input[i];
-                        writePointer = (writePointer + 1) % bufferLength;
+                        bufferL[writePtr] = input[i];
+                        writePtr++;
+                        if (writePtr >= bufLen) writePtr = 0;
                     }
                 };
 
-                // FX Setup
+                // Ветка 3: Эффекты (Куда будут лететь зерна)
                 await setupEffects();
 
-                // Connections
-                sourceNode.connect(analyser); // Для визуализации
-                sourceNode.connect(recorderNode);
-                recorderNode.connect(audioCtx.destination); // Keep alive
+                // 7. Запуск
+                scheduleGrain(); // Запуск мотора гранулятора
+                drawVisualizer(); // Запуск рисования
 
-                // Start Engine
-                startGranularEngine();
-                visualize();
-
-                // UI Update
                 isRunning = true;
-                body.classList.add('active');
-                btnText.innerText = "STOP CAPTURE";
-                statusMsg.innerText = "LISTENING / PROCESSING";
+                document.body.classList.add('active');
+                btnText.innerText = "STOP SYSTEM";
+                log("STATUS: RUNNING [REC]");
 
-            } catch (err) {
-                console.error(err);
-                btnText.innerText = "ERROR";
-                statusMsg.innerText = "MIC ACCESS DENIED OR NOT SUPPORTED";
-                alert("Ошибка: " + err.message + "\nПожалуйста, используйте Safari (iOS) или Chrome (Android) и разрешите доступ к микрофону.");
+            } catch (e) {
+                console.error(e);
+                log("ERROR: " + e.message);
+                alert("Ошибка доступа: " + e.message + "\n\n1. Проверьте HTTPS.\n2. Разрешите микрофон.\n3. Подключите наушники.");
             }
         }
 
         function stopAudio() {
-            if (schedulerInterval) clearInterval(schedulerInterval);
+            clearTimeout(grainTimeout);
+            cancelAnimationFrame(animationId);
+            
             if (sourceNode) sourceNode.disconnect();
             if (recorderNode) recorderNode.disconnect();
-            if (micStream) micStream.getTracks().forEach(track => track.stop());
-            if (audioCtx) audioCtx.suspend();
+            if (muteNode) muteNode.disconnect();
+            if (stream) stream.getTracks().forEach(t => t.stop());
             
-            cancelAnimationFrame(drawVisual);
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Очищаем Canvas
+            ctx.clearRect(0,0, canvas.width, canvas.height);
             
             isRunning = false;
-            body.classList.remove('active');
-            btnText.innerText = "RESUME SYSTEM";
-            statusMsg.innerText = "SYSTEM PAUSED";
+            document.body.classList.remove('active');
+            btnText.innerText = "START SYSTEM";
+            log("STATUS: STOPPED");
         }
 
-        // --- Granular Engine ---
-        function startGranularEngine() {
-            const getDensity = () => parseInt(document.getElementById('density').value);
+        // --- Эффекты ---
+        async function setupEffects() {
+            compressor = audioCtx.createDynamicsCompressor();
+            compressor.threshold.value = -12;
             
-            const run = () => {
-                if (!isRunning) return;
-                spawnGrain();
-                // Randomize timing slightly for organic feel
-                setTimeout(run, getDensity() + (Math.random() * 20));
-            };
-            run();
+            reverbNode = audioCtx.createConvolver();
+            // Генерируем "белый шум" как импульс для ревербератора
+            const tailSeconds = 3;
+            const length = audioCtx.sampleRate * tailSeconds;
+            const impulse = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
+            for (let ch = 0; ch < 2; ch++) {
+                const data = impulse.getChannelData(ch);
+                for (let i = 0; i < length; i++) {
+                    const decay = Math.pow(1 - i / length, 4); // Резкий спад
+                    data[i] = (Math.random() * 2 - 1) * decay;
+                }
+            }
+            reverbNode.buffer = impulse;
+
+            dryGain = audioCtx.createGain();
+            wetGain = audioCtx.createGain();
+            updateMix();
+
+            // Выход эффектов -> Compressor -> Master
+            dryGain.connect(compressor);
+            wetGain.connect(reverbNode);
+            reverbNode.connect(compressor);
+            compressor.connect(audioCtx.destination);
         }
 
-        function spawnGrain() {
-            if (audioCtx.state !== 'running') return;
+        function updateMix() {
+            if (!dryGain) return;
+            const val = parseFloat(document.getElementById('verbMix').value);
+            dryGain.gain.value = 1.0 - (val * 0.5);
+            wetGain.gain.value = val;
+        }
+        document.getElementById('verbMix').addEventListener('input', updateMix);
+
+        // --- Granular Engine (Сердце) ---
+        function scheduleGrain() {
+            if (!isRunning) return;
+
+            const density = parseInt(document.getElementById('density').value);
+            // Случайный разброс времени старта следующего зерна
+            const nextTime = density + (Math.random() * 20); 
+            
+            playGrain();
+            
+            grainTimeout = setTimeout(scheduleGrain, nextTime);
+        }
+
+        function playGrain() {
+            // Если буфер еще пуст (начало работы), не играем
+            if (writePtr < 1000 && bufLen === 0) return;
 
             const grainSize = parseFloat(document.getElementById('grainSize').value);
             const grainLen = Math.floor(grainSize * audioCtx.sampleRate);
             
-            // Random offset in past (0.1s to 2.5s)
-            const offset = Math.floor((Math.random() * 2.4 + 0.1) * audioCtx.sampleRate);
-            let readPos = writePointer - offset;
-            if (readPos < 0) readPos += bufferLength;
+            // Берем кусок из прошлого (от 0.2с до 2с назад)
+            // Важно: отступаем от writePtr, чтобы не читать то, что сейчас пишется
+            const offset = Math.floor((Math.random() * 1.8 + 0.2) * audioCtx.sampleRate);
+            let readPos = writePtr - offset;
+            if (readPos < 0) readPos += bufLen;
 
-            // Prepare buffer
-            const grainBuff = audioCtx.createBuffer(1, grainLen, audioCtx.sampleRate);
-            const data = grainBuff.getChannelData(0);
+            // Создаем буфер для одного зерна
+            const buffer = audioCtx.createBuffer(1, grainLen, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
 
-            // Copy with loop wrap-around
+            // Копируем данные
             for (let i = 0; i < grainLen; i++) {
-                let idx = (readPos + i) % bufferLength;
-                data[i] = audioBufferL[idx];
+                let idx = readPos + i;
+                if (idx >= bufLen) idx -= bufLen; // Кольцо
+                data[i] = bufferL[idx];
             }
 
-            // Playback
+            // Создаем источник звука
             const src = audioCtx.createBufferSource();
-            src.buffer = grainBuff;
-            
-            // Pitch randomization (Lower and slower = more ambient)
-            // Range: 0.5 (octave down) to 1.1 (slight pitch up)
-            src.playbackRate.value = 0.5 + (Math.random() * 0.6);
+            src.buffer = buffer;
 
-            // Envelope
+            // Питч (замедление/ускорение)
+            // 0.5 = октава вниз, 1.0 = нормально
+            const rate = 0.5 + Math.random() * 0.7; 
+            src.playbackRate.value = rate;
+
+            // Огибающая (Envelope) - чтобы убрать щелчки
             const env = audioCtx.createGain();
             const now = audioCtx.currentTime;
             env.gain.setValueAtTime(0, now);
-            env.gain.linearRampToValueAtTime(0.6, now + (grainSize * 0.4)); // Attack
+            env.gain.linearRampToValueAtTime(0.8, now + (grainSize * 0.2)); // Attack
             env.gain.linearRampToValueAtTime(0, now + grainSize);       // Release
 
-            // Panner
+            // Панорама
             const panner = audioCtx.createStereoPanner();
-            panner.pan.value = (Math.random() * 2) - 1;
+            panner.pan.value = Math.random() * 2 - 1;
 
-            // Connect
+            // Соединяем
             src.connect(env);
             env.connect(panner);
             panner.connect(dryGain);
@@ -404,85 +473,37 @@
             src.start();
         }
 
-        async function setupEffects() {
-            // Reverb
-            reverbNode = audioCtx.createConvolver();
-            reverbNode.buffer = createNoiseImpulse(2.5); // 2.5s tail
+        // --- Визуализация (Осциллограмма) ---
+        function drawVisualizer() {
+            if (!isRunning) return;
+            animationId = requestAnimationFrame(drawVisualizer);
 
-            // Compressor (Safety)
-            compressor = audioCtx.createDynamicsCompressor();
-            compressor.threshold.value = -12;
-            compressor.ratio.value = 10;
-            
-            dryGain = audioCtx.createGain();
-            wetGain = audioCtx.createGain();
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteTimeDomainData(dataArray);
 
-            updateMix();
-            document.getElementById('verbMix').addEventListener('input', updateMix);
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            dryGain.connect(compressor);
-            wetGain.connect(reverbNode);
-            reverbNode.connect(compressor);
-            compressor.connect(audioCtx.destination);
-        }
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#ffffff';
+            ctx.beginPath();
 
-        function updateMix() {
-            const mix = parseFloat(document.getElementById('verbMix').value);
-            dryGain.gain.value = 1.0 - (mix * 0.4); // Never fully mute dry
-            wetGain.gain.value = mix;
-        }
+            const sliceWidth = canvas.width * 1.0 / bufferLength;
+            let x = 0;
 
-        function createNoiseImpulse(duration) {
-            const len = audioCtx.sampleRate * duration;
-            const buffer = audioCtx.createBuffer(2, len, audioCtx.sampleRate);
-            for (let c = 0; c < 2; c++) {
-                const data = buffer.getChannelData(c);
-                for (let i = 0; i < len; i++) {
-                    // Exponential decay
-                    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
-                }
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0; // 1.0 - центр (тишина)
+                const y = v * (canvas.height / 2);
+
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+
+                x += sliceWidth;
             }
-            return buffer;
-        }
 
-        // --- Visualizer ---
-        function visualize() {
-            const bufferLengthAlt = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLengthAlt);
-
-            const draw = () => {
-                if (!isRunning) return;
-                drawVisual = requestAnimationFrame(draw);
-
-                analyser.getByteTimeDomainData(dataArray);
-
-                ctx.fillStyle = 'rgb(0, 0, 0)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = 'rgb(255, 255, 255)';
-                ctx.beginPath();
-
-                const sliceWidth = canvas.width * 1.0 / bufferLengthAlt;
-                let x = 0;
-
-                for(let i = 0; i < bufferLengthAlt; i++) {
-                    const v = dataArray[i] / 128.0;
-                    const y = v * canvas.height / 2;
-
-                    if(i === 0) {
-                        ctx.moveTo(x, y);
-                    } else {
-                        ctx.lineTo(x, y);
-                    }
-
-                    x += sliceWidth;
-                }
-
-                ctx.lineTo(canvas.width, canvas.height/2);
-                ctx.stroke();
-            };
-            draw();
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
         }
 
     </script>
